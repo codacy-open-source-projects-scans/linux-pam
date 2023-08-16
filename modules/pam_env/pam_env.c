@@ -388,7 +388,7 @@ static int read_file(const pam_handle_t *pamh, const char*filename, char ***line
     }
 
     size_t i = 0;
-    *lines = malloc((i + 1)* sizeof(char**));
+    *lines = malloc((i + 1)* sizeof(char*));
     if (*lines == NULL) {
       pam_syslog(pamh, LOG_ERR, "Cannot allocate memory.");
       (void) fclose(conf);
@@ -398,7 +398,7 @@ static int read_file(const pam_handle_t *pamh, const char*filename, char ***line
     while (_assemble_line(conf, buffer, BUF_SIZE) > 0) {
       char **tmp = NULL;
       D(("Read line: %s", buffer));
-      tmp = realloc(*lines, (++i + 1) * sizeof(char**));
+      tmp = realloc(*lines, (++i + 1) * sizeof(char*));
       if (tmp == NULL) {
 	pam_syslog(pamh, LOG_ERR, "Cannot allocate memory.");
 	(void) fclose(conf);
@@ -965,7 +965,7 @@ _parse_env_file(pam_handle_t *pamh, int ctrl, const char *file)
 	}
 
 	for ( i = 0 ; key[i] != '=' && key[i] != '\0' ; i++ )
-	    if (!isalnum(key[i]) && key[i] != '_') {
+	    if (!isalnum((unsigned char)key[i]) && key[i] != '_') {
 		pam_syslog(pamh, LOG_ERR,
 		           "non-alphanumeric key '%s' in %s', ignoring",
 		           key, file);
