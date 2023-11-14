@@ -31,7 +31,7 @@ int pam_set_item (pam_handle_t *pamh, int item_type, const void *item)
 
     D(("called"));
 
-    IF_NO_PAMH("pam_set_item", pamh, PAM_SYSTEM_ERR);
+    IF_NO_PAMH(pamh, PAM_SYSTEM_ERR);
 
     retval = PAM_SUCCESS;
 
@@ -113,8 +113,7 @@ int pam_set_item (pam_handle_t *pamh, int item_type, const void *item)
 	} else {
 	    struct pam_conv *tconv;
 
-	    if ((tconv=
-		 (struct pam_conv *) malloc(sizeof(struct pam_conv))
+	    if ((tconv = malloc(sizeof(struct pam_conv))
 		) == NULL) {
 		pam_syslog(pamh, LOG_CRIT,
 				"pam_set_item: malloc failed for pam_conv");
@@ -177,7 +176,7 @@ int pam_get_item (const pam_handle_t *pamh, int item_type, const void **item)
     int retval = PAM_SUCCESS;
 
     D(("called."));
-    IF_NO_PAMH("pam_get_item", pamh, PAM_SYSTEM_ERR);
+    IF_NO_PAMH(pamh, PAM_SYSTEM_ERR);
 
     if (item == NULL) {
 	pam_syslog(pamh, LOG_ERR,
@@ -280,7 +279,7 @@ int pam_get_user(pam_handle_t *pamh, const char **user, const char *prompt)
 
     D(("called."));
 
-    IF_NO_PAMH("pam_get_user", pamh, PAM_SYSTEM_ERR);
+    IF_NO_PAMH(pamh, PAM_SYSTEM_ERR);
 
     if (user == NULL) {
         /* ensure that the module has supplied a destination */
@@ -372,7 +371,7 @@ int pam_get_user(pam_handle_t *pamh, const char **user, const char *prompt)
 		break;
 	    } else {
 		/* conversation should have given a response */
-		D(("pam_get_user: no response provided"));
+		D(("no response provided"));
 		retval = PAM_CONV_ERR;
 	    }
 	    /* fallthrough */

@@ -139,7 +139,7 @@ read_field(const pam_handle_t *pamh, int fd, char **buf, int *from, int *state, 
 
     /* is buf set ? */
     if (! *buf) {
-	*buf = (char *) calloc(1, PAM_TIME_BUFLEN+1);
+	*buf = calloc(1, PAM_TIME_BUFLEN+1);
 	if (! *buf) {
 	    pam_syslog(pamh, LOG_CRIT, "out of memory");
 	    D(("no memory"));
@@ -432,7 +432,7 @@ check_time(pam_handle_t *pamh, const void *AT, const char *times,
      int i,j=0;
 
      at = AT;
-     D(("chcking: 0%o/%.4d vs. %s", at->day, at->minute, times));
+     D(("checking: 0%o/%.4d vs. %s", at->day, at->minute, times));
 
      if (times == NULL) {
 	  /* this should not happen */
