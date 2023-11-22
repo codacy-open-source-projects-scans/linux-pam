@@ -464,7 +464,7 @@ _parse_line(const pam_handle_t *pamh, const char *buffer, VAR *var)
   ptr = buffer+length;
   while ((length = strspn(ptr, " \t")) > 0) {
     ptr += length;                              /* remove leading whitespace */
-    D((ptr));
+    D(("%s", ptr));
     if ((tmpptr = pam_str_skip_prefix(ptr, "DEFAULT=")) != NULL) {
       ptr = tmpptr;
       D(("Default arg found: <%s>", ptr));
@@ -694,7 +694,7 @@ _expand_arg(pam_handle_t *pamh, char **value)
   if (idx > strlen(*value)) {
     free(*value);
     if ((*value = malloc(idx + 1)) == NULL) {
-      D(("Couldn't malloc %d bytes for expanded var", idx + 1));
+      D(("Couldn't malloc %zu bytes for expanded var", idx + 1));
       pam_syslog (pamh, LOG_CRIT, "Couldn't malloc %lu bytes for expanded var",
 	       (unsigned long)idx+1);
       goto buf_err;
