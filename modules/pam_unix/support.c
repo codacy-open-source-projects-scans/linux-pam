@@ -46,6 +46,18 @@ int _make_remark(pam_handle_t * pamh, unsigned long long ctrl,
 	return retval;
 }
 
+static int _unix_strtoi(const char *str, int minval, int *result)
+{
+	char *ep;
+	long value = strtol(str, &ep, 10);
+	if (value < minval || value > INT_MAX || str == ep || *ep != '\0') {
+		*result = minval;
+		return -1;
+	}
+	*result = (int)value;
+	return 0;
+}
+
 /*
  * set the control flags for the UNIX module.
  */
@@ -97,22 +109,6 @@ unsigned long long _set_ctrl(pam_handle_t *pamh, int flags, int *remember,
 	    ctrl |= unix_args[j].flag;	/* for turning things on  */
 	  }
 	  free (val);
-
-	  /* read number of rounds for crypt algo */
-	  if (rounds) {
-	    val = NULL;
-	    if (on(UNIX_SHA256_PASS, ctrl) || on(UNIX_SHA512_PASS, ctrl)) {
-	      val = pam_modutil_search_key(pamh, LOGIN_DEFS, "SHA_CRYPT_MAX_ROUNDS");
-	    } else if (on(UNIX_YESCRYPT_PASS, ctrl)) {
-	      val = pam_modutil_search_key(pamh, LOGIN_DEFS, "YESCRYPT_COST_FACTOR");
-	    }
-
-	    if (val) {
-	      *rounds = strtol(val, NULL, 10);
-	      set(UNIX_ALGO_ROUNDS, ctrl);
-	      free (val);
-	    }
-	  }
 	}
 
 	/* now parse the arguments to this module */
@@ -142,9 +138,11 @@ unsigned long long _set_ctrl(pam_handle_t *pamh, int flags, int *remember,
 					    "option remember not allowed for this module type");
 					continue;
 				}
-				*remember = strtol(str, NULL, 10);
-				if ((*remember == INT_MIN) || (*remember == INT_MAX))
-					*remember = -1;
+				if (_unix_strtoi(str, -1, remember)) {
+					pam_syslog(pamh, LOG_ERR,
+					    "option remember invalid [%s]", str);
+					continue;
+				}
 				if (*remember > 400)
 					*remember = 400;
 			} else if (j == UNIX_MIN_PASS_LEN) {
@@ -153,14 +151,22 @@ unsigned long long _set_ctrl(pam_handle_t *pamh, int flags, int *remember,
 					    "option minlen not allowed for this module type");
 					continue;
 				}
-				*pass_min_len = atoi(str);
+				if (_unix_strtoi(str, 0, pass_min_len)) {
+					pam_syslog(pamh, LOG_ERR,
+					    "option minlen invalid [%s]", str);
+					continue;
+				}
 			} else if (j == UNIX_ALGO_ROUNDS) {
 				if (rounds == NULL) {
 					pam_syslog(pamh, LOG_ERR,
 					    "option rounds not allowed for this module type");
 					continue;
 				}
-				*rounds = strtol(str, NULL, 10);
+				if (_unix_strtoi(str, 0, rounds)) {
+					pam_syslog(pamh, LOG_ERR,
+					    "option rounds invalid [%s]", str);
+					continue;
+				}
 			}
 
 			ctrl &= unix_args[j].mask;	/* for turning things off */
@@ -178,6 +184,29 @@ unsigned long long _set_ctrl(pam_handle_t *pamh, int flags, int *remember,
 	if (flags & PAM_DISALLOW_NULL_AUTHTOK) {
 		D(("DISALLOW_NULL_AUTHTOK"));
 		set(UNIX__NONULL, ctrl);
+	}
+
+	/* Read number of rounds for sha256, sha512 and yescrypt */
+	if (off(UNIX_ALGO_ROUNDS, ctrl) && rounds != NULL) {
+		const char *key = NULL;
+		if (on(UNIX_YESCRYPT_PASS, ctrl))
+			key = "YESCRYPT_COST_FACTOR";
+		else if (on(UNIX_SHA256_PASS, ctrl) || on(UNIX_SHA512_PASS, ctrl))
+			key = "SHA_CRYPT_MAX_ROUNDS";
+		else
+			key = NULL;
+
+		if (key != NULL) {
+			val = pam_modutil_search_key(pamh, LOGIN_DEFS, key);
+			if (val) {
+				if (_unix_strtoi(val, 0, rounds))
+					pam_syslog(pamh, LOG_ERR,
+					    "option %s invalid [%s]", key, val);
+				else
+					set(UNIX_ALGO_ROUNDS, ctrl);
+				free (val);
+			}
+		}
 	}
 
 	/* Set default rounds for blowfish, gost-yescrypt and yescrypt */
@@ -321,11 +350,12 @@ int _unix_getpwnam(pam_handle_t *pamh, const char *name,
 	char buf[16384];
 	int matched = 0, buflen;
 	char *slogin, *spasswd, *suid, *sgid, *sgecos, *shome, *sshell, *p;
+	size_t userlen;
 
 	memset(buf, 0, sizeof(buf));
 
-	if (!matched && files) {
-		int userlen = strlen(name);
+	userlen = strlen(name);
+	if (!matched && files && userlen < sizeof(buf) && strchr(name, ':') == NULL) {
 		passwd = fopen("/etc/passwd", "r");
 		if (passwd != NULL) {
 			while (fgets(buf, sizeof(buf), passwd) != NULL) {

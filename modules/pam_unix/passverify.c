@@ -5,6 +5,7 @@
 #include <security/_pam_macros.h>
 #include <security/pam_modules.h>
 #include "support.h"
+#include <limits.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
@@ -279,14 +280,29 @@ PAMH_ARG_DECL(int get_pwd_hash,
 	return PAM_SUCCESS;
 }
 
+/*
+ * invariant: 0 <= num1
+ * invariant: 0 <= num2
+ */
+static int
+subtract(long num1, long num2)
+{
+	long value = num1 - num2;
+	if (value < INT_MIN)
+		return INT_MIN;
+	if (value > INT_MAX)
+		return INT_MAX;
+	return (int)value;
+}
+
 PAMH_ARG_DECL(int check_shadow_expiry,
 	struct spwd *spent, int *daysleft)
 {
-	long int curdays;
+	long int curdays, passed;
 	*daysleft = -1;
 	curdays = (long int)(time(NULL) / (60 * 60 * 24));
 	D(("today is %ld, last change %ld", curdays, spent->sp_lstchg));
-	if ((curdays >= spent->sp_expire) && (spent->sp_expire != -1)) {
+	if (spent->sp_expire >= 0 && curdays >= spent->sp_expire) {
 		D(("account expired"));
 		return PAM_ACCT_EXPIRED;
 	}
@@ -301,25 +317,31 @@ PAMH_ARG_DECL(int check_shadow_expiry,
 			 spent->sp_namp);
 		return PAM_SUCCESS;
 	}
-	if ((curdays - spent->sp_lstchg > spent->sp_max)
-	    && (curdays - spent->sp_lstchg > spent->sp_inact)
-	    && (curdays - spent->sp_lstchg > spent->sp_max + spent->sp_inact)
-	    && (spent->sp_max != -1) && (spent->sp_inact != -1)) {
-		*daysleft = (int)((spent->sp_lstchg + spent->sp_max) - curdays);
-		D(("authtok expired"));
-		return PAM_AUTHTOK_EXPIRED;
+	passed = curdays - spent->sp_lstchg;
+	if (spent->sp_max >= 0) {
+		if (spent->sp_inact >= 0) {
+			long inact = spent->sp_max < LONG_MAX - spent->sp_inact ?
+			    spent->sp_max + spent->sp_inact : LONG_MAX;
+			if (passed > inact) {
+				*daysleft = subtract(inact, passed);
+				D(("authtok expired"));
+				return PAM_AUTHTOK_EXPIRED;
+			}
+		}
+		if (passed > spent->sp_max) {
+			D(("need a new password 2"));
+			return PAM_NEW_AUTHTOK_REQD;
+		}
+		if (spent->sp_warn >= 0) {
+			long warn = spent->sp_warn > spent->sp_max ? -1 :
+			    spent->sp_max - spent->sp_warn;
+			if (passed > warn) {
+				*daysleft = subtract(spent->sp_max, passed);
+				D(("warn before expiry"));
+			}
+		}
 	}
-	if ((curdays - spent->sp_lstchg > spent->sp_max) && (spent->sp_max != -1)) {
-		D(("need a new password 2"));
-		return PAM_NEW_AUTHTOK_REQD;
-	}
-	if ((curdays - spent->sp_lstchg > spent->sp_max - spent->sp_warn)
-	    && (spent->sp_max != -1) && (spent->sp_warn != -1)) {
-		*daysleft = (int)((spent->sp_lstchg + spent->sp_max) - curdays);
-		D(("warn before expiry"));
-	}
-	if ((curdays - spent->sp_lstchg < spent->sp_min)
-	    && (spent->sp_min != -1)) {
+	if (spent->sp_min >= 0 && passed < spent->sp_min) {
 		/*
 		 * The last password change was too recent. This error will be ignored
 		 * if no password change is attempted.
@@ -703,7 +725,8 @@ save_old_password(pam_handle_t *pamh, const char *forwho, const char *oldpass,
 
     while (fgets(buf, 16380, opwfile)) {
 	if (!strncmp(buf, forwho, len) && strchr(":,\n", buf[len]) != NULL) {
-	    char *sptr = NULL;
+	    char *ep, *sptr = NULL;
+	    long value;
 	    found = 1;
 	    if (howmany == 0)
 		continue;
@@ -724,7 +747,11 @@ save_old_password(pam_handle_t *pamh, const char *forwho, const char *oldpass,
 		continue;
 	    }
 	    s_pas = strtok_r(NULL, ":", &sptr);
-	    npas = strtol(s_npas, NULL, 10) + 1;
+	    value = strtol(s_npas, &ep, 10);
+	    if (value < 0 || value >= INT_MAX || s_npas == ep || *ep != '\0')
+		npas = 0;
+	    else
+		npas = (int)value + 1;
 	    while (npas > howmany && s_pas != NULL) {
 		s_pas = strpbrk(s_pas, ",");
 		if (s_pas != NULL)

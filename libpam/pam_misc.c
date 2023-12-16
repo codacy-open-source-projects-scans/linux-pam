@@ -45,37 +45,29 @@
 #include <syslog.h>
 #include <ctype.h>
 
-char *_pam_StrTok(char *from, const char *format, char **next)
+#define DELIMITERS " \n\t"
+
+char *_pam_tokenize(char *from, char **next)
 /*
- * this function is a variant of the standard strtok, it differs in that
- * it takes an additional argument and doesn't nul terminate tokens until
+ * this function is a variant of the standard strtok_r, it differs in that
+ * it uses a fixed set of delimiters and doesn't nul terminate tokens until
  * they are actually reached.
  */
 {
-     char table[256], *end;
-     int i;
+     char *end;
 
      if (from == NULL && (from = *next) == NULL)
 	  return from;
 
-     /* initialize table */
-     for (i=1; i<256; table[i++] = '\0');
-     for (i=0; format[i] ;
-	  table[(unsigned char)format[i++]] = 'y');
-
      /* look for first non-format char */
-     while (*from && table[(unsigned char)*from]) {
-	  ++from;
-     }
+     from += strspn(from, DELIMITERS);
 
      if (*from == '[') {
 	 /*
 	  * special case, "[...]" is considered to be a single
-	  * object.  Note, however, if one of the format[] chars is
-	  * '[' this single string will not be read correctly.
-	  * Note, any '[' inside the outer "[...]" pair will survive.
-	  * Note, the first ']' will terminate this string, but
-	  *  that "\]" will get compressed into "]". That is:
+	  * object.  Note, any '[' inside the outer "[...]" pair will
+	  * survive.  Note, the first ']' will terminate this string,
+	  * but that "\]" will get compressed into "]". That is:
 	  *
 	  *   "[..[..\]..]..." --> "..[..].."
 	  */
@@ -94,7 +86,7 @@ char *_pam_StrTok(char *from, const char *format, char **next)
             remains */
      } else if (*from) {
 	 /* simply look for next blank char */
-	 for (end=from; *end && !table[(unsigned char)*end]; ++end);
+	 end = from + strcspn(from, DELIMITERS);
      } else {
 	 return (*next = NULL);                    /* no tokens left */
      }
@@ -198,7 +190,7 @@ int _pam_mkargv(const char *s, char ***argv, int *argc)
 
 		argvbufp = (char *) argvbuf + (l * sizeof(char *));
 		D(("[%s]",sbuf));
-		while ((sbuf = _pam_StrTok(sbuf, " \n\t", &tmp))) {
+		while ((sbuf = _pam_tokenize(sbuf, &tmp))) {
 		    D(("arg #%d",++count));
 		    D(("->[%s]",sbuf));
 		    strcpy(argvbufp, sbuf);
