@@ -311,6 +311,11 @@ PAMH_ARG_DECL(int check_shadow_expiry,
 		*daysleft = 0;
 		return PAM_NEW_AUTHTOK_REQD;
 	}
+	if (spent->sp_lstchg < 0) {
+		D(("password aging disabled"));
+		*daysleft = 0;
+		return PAM_SUCCESS;
+	}
 	if (curdays < spent->sp_lstchg) {
 		pam_syslog(pamh, LOG_DEBUG,
 			 "account %s has password changed in future",
@@ -322,26 +327,26 @@ PAMH_ARG_DECL(int check_shadow_expiry,
 		if (spent->sp_inact >= 0) {
 			long inact = spent->sp_max < LONG_MAX - spent->sp_inact ?
 			    spent->sp_max + spent->sp_inact : LONG_MAX;
-			if (passed > inact) {
+			if (passed >= inact) {
 				*daysleft = subtract(inact, passed);
 				D(("authtok expired"));
 				return PAM_AUTHTOK_EXPIRED;
 			}
 		}
-		if (passed > spent->sp_max) {
+		if (passed >= spent->sp_max) {
 			D(("need a new password 2"));
 			return PAM_NEW_AUTHTOK_REQD;
 		}
-		if (spent->sp_warn >= 0) {
+		if (spent->sp_warn > 0) {
 			long warn = spent->sp_warn > spent->sp_max ? -1 :
 			    spent->sp_max - spent->sp_warn;
-			if (passed > warn) {
+			if (passed >= warn) {
 				*daysleft = subtract(spent->sp_max, passed);
 				D(("warn before expiry"));
 			}
 		}
 	}
-	if (spent->sp_min >= 0 && passed < spent->sp_min) {
+	if (spent->sp_min > 0 && passed < spent->sp_min) {
 		/*
 		 * The last password change was too recent. This error will be ignored
 		 * if no password change is attempted.
@@ -647,7 +652,6 @@ save_old_password(pam_handle_t *pamh, const char *forwho, const char *oldpass,
 #endif
 {
     static char buf[16384];
-    static char nbuf[16384];
     char *s_luser, *s_uid, *s_npas, *s_pas, *pass;
     int npas;
     FILE *pwfile, *opwfile;
@@ -760,16 +764,14 @@ save_old_password(pam_handle_t *pamh, const char *forwho, const char *oldpass,
 	    }
 	    pass = crypt_md5_wrapper(oldpass);
 	    if (s_pas == NULL)
-		snprintf(nbuf, sizeof(nbuf), "%s:%s:%d:%s\n",
-			 s_luser, s_uid, npas, pass);
+		err = fprintf(pwfile, "%s:%s:%d:%s\n",
+			      s_luser, s_uid, npas, pass) < 0;
 	    else
-		snprintf(nbuf, sizeof(nbuf),"%s:%s:%d:%s,%s\n",
-			 s_luser, s_uid, npas, s_pas, pass);
+		err = fprintf(pwfile, "%s:%s:%d:%s,%s\n",
+			      s_luser, s_uid, npas, s_pas, pass) < 0;
 	    _pam_delete(pass);
-	    if (fputs(nbuf, pwfile) < 0) {
-		err = 1;
+	    if (err)
 		break;
-	    }
 	} else if (fputs(buf, pwfile) < 0) {
 	    err = 1;
 	    break;
@@ -783,12 +785,9 @@ save_old_password(pam_handle_t *pamh, const char *forwho, const char *oldpass,
 	    err = 1;
 	} else {
 	    pass = crypt_md5_wrapper(oldpass);
-	    snprintf(nbuf, sizeof(nbuf), "%s:%lu:1:%s\n",
-		     forwho, (unsigned long)pwd->pw_uid, pass);
+	    err = fprintf(pwfile, "%s:%lu:1:%s\n",
+			  forwho, (unsigned long)pwd->pw_uid, pass) < 0;
 	    _pam_delete(pass);
-	    if (fputs(nbuf, pwfile) < 0) {
-		err = 1;
-	    }
 	}
     }
 

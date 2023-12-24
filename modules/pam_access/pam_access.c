@@ -158,7 +158,7 @@ parse_args(pam_handle_t *pamh, struct login_info *loginfo,
     return 1;  /* OK */
 }
 
-/* --- evaluting all files in VENDORDIR/security/access.d and /etc/security/access.d --- */
+/* --- evaluating all files in VENDORDIR/security/access.d and /etc/security/access.d --- */
 static const char *base_name(const char *path)
 {
     const char *base = strrchr(path, '/');
@@ -427,8 +427,8 @@ login_access (pam_handle_t *pamh, struct login_info *item)
 #ifdef HAVE_LIBAUDIT
     int     nonall_match = NO;
 #endif
-    int     end;
-    int     lineno = 0;		/* for diagnostics */
+    size_t  end;
+    size_t  lineno = 0;		/* for diagnostics */
     char   *sptr;
 
     if (item->debug)
@@ -448,9 +448,11 @@ login_access (pam_handle_t *pamh, struct login_info *item)
     if ((fp = fopen(item->config_file, "r"))!=NULL) {
 	while (!match && fgets(line, sizeof(line), fp)) {
 	    lineno++;
+	    if (line[0] == 0)
+		continue;
 	    if (line[end = strlen(line) - 1] != '\n') {
 		pam_syslog(pamh, LOG_ERR,
-                           "%s: line %d: missing newline or line too long",
+                           "%s: line %zu: missing newline or line too long",
 		           item->config_file, lineno);
 		continue;
 	    }
@@ -466,18 +468,18 @@ login_access (pam_handle_t *pamh, struct login_info *item)
 	    if (!(perm = strtok_r(line, item->fs, &sptr))
 		|| !(users = strtok_r(NULL, item->fs, &sptr))
 		|| !(froms = strtok_r(NULL, "\n", &sptr))) {
-		pam_syslog(pamh, LOG_ERR, "%s: line %d: bad field count",
+		pam_syslog(pamh, LOG_ERR, "%s: line %zu: bad field count",
 			   item->config_file, lineno);
 		continue;
 	    }
 	    if (perm[0] != '+' && perm[0] != '-') {
-		pam_syslog(pamh, LOG_ERR, "%s: line %d: bad first field",
+		pam_syslog(pamh, LOG_ERR, "%s: line %zu: bad first field",
 			   item->config_file, lineno);
 		continue;
 	    }
 	    if (item->debug)
 	      pam_syslog (pamh, LOG_DEBUG,
-			  "line %d: %s : %s : %s", lineno, perm, users, froms);
+			  "line %zu: %s : %s : %s", lineno, perm, users, froms);
 	    match = list_match(pamh, users, NULL, item, user_match);
 	    if (item->debug)
 	      pam_syslog (pamh, LOG_DEBUG, "user_match=%d, \"%s\"",

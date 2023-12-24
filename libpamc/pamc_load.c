@@ -245,9 +245,9 @@ int pamc_disable(pamc_handle_t pch, const char *agent_id)
 int pamc_load(pamc_handle_t pch, const char *agent_id)
 {
     pamc_agent_t *agent;
-    int length;
+    size_t length;
 
-    /* santity checking */
+    /* sanity checking */
 
     if (pch == NULL) {
 	D(("pch is NULL"));
@@ -393,10 +393,8 @@ static pamc_id_node_t *__pamc_add_node(pamc_id_node_t *root, const char *id,
 static pamc_id_node_t *__pamc_liberate_nodes(pamc_id_node_t *tree)
 {
     if (tree) {
-	if (tree->agent_id) {
-	    free(tree->agent_id);
-	    tree->agent_id = NULL;
-	}
+	free(tree->agent_id);
+	tree->agent_id = NULL;
 
 	tree->left = __pamc_liberate_nodes(tree->left);
 	tree->right = __pamc_liberate_nodes(tree->right);

@@ -582,7 +582,7 @@ static int _unix_run_helper_binary(pam_handle_t *pamh, const char *passwd,
 	/* if the stored password is NULL */
         int rc=0;
 	if (passwd != NULL) {            /* send the password to the child */
-	    int len = strlen(passwd);
+	    size_t len = strlen(passwd);
 
 	    if (len > PAM_MAX_RESP_SIZE)
 	      len = PAM_MAX_RESP_SIZE;
@@ -648,7 +648,7 @@ _unix_blankpasswd (pam_handle_t *pamh, unsigned long long ctrl, const char *name
 
 	/*
 	 * This function does not have to be too smart if something goes
-	 * wrong, return FALSE and let this case to be treated somewhere
+	 * wrong, return FALSE and let this case be treated somewhere
 	 * else (CG)
 	 */
 

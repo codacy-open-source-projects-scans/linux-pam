@@ -22,7 +22,7 @@ int pam_chauthtok(pam_handle_t *pamh, int flags)
 	return PAM_SYSTEM_ERR;
     }
 
-    /* applications are not allowed to set this flags */
+    /* applications are not allowed to set these flags */
     if (flags & (PAM_PRELIM_CHECK | PAM_UPDATE_AUTHTOK)) {
       pam_syslog (pamh, LOG_ERR,
 		  "PAM_PRELIM_CHECK or PAM_UPDATE_AUTHTOK set by application");
@@ -52,7 +52,7 @@ int pam_chauthtok(pam_handle_t *pamh, int flags)
 	_pam_sanitize(pamh);
 	pamh->former.update = PAM_FALSE;
 	_pam_await_timer(pamh, retval);   /* if unsuccessful then wait now */
-	D(("pam_chauthtok exit %d - %d", retval, pamh->former.choice));
+	D(("exiting %d - %d", retval, pamh->former.choice));
     } else {
 	D(("will resume when ready"));
     }

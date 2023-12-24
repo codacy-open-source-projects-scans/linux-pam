@@ -28,6 +28,7 @@
  * Version 1.1, modified 2/27/1999
  */
 
+#include <limits.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
@@ -61,11 +62,16 @@ int argv_parse(const char *in_buf, int *ret_argc, char ***ret_argv)
 			/* Not whitespace, so start a new token */
 			state = STATE_TOKEN;
 			if (argc >= max_argc) {
+				if (max_argc >= INT_MAX - 3) {
+					free(argv);
+					free(buf);
+					return -1;
+				}
 				max_argc += 3;
 				new_argv = realloc(argv,
 						  (max_argc+1)*sizeof(char *));
 				if (!new_argv) {
-					if (argv) free(argv);
+					free(argv);
 					free(buf);
 					return -1;
 				}
@@ -131,8 +137,7 @@ int argv_parse(const char *in_buf, int *ret_argc, char ***ret_argv)
 void argv_free(char **argv)
 {
 	if (argv) {
-		if (*argv)
-			free(*argv);
+		free(*argv);
 		free(argv);
 	}
 }

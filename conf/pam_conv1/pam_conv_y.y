@@ -24,7 +24,7 @@
 
     extern int yylex(void);
 
-    int current_line=1;
+    unsigned long long current_line=0;
     extern char *yytext;
 
 /* XXX - later we'll change this to be the specific conf file(s) */
@@ -100,6 +100,7 @@ line
 	exit(1);
     }
     free(filename);
+    free($1);
 
     /* $2 = module-type */
     fprintf(conf, "%-10s", $2);
@@ -157,11 +158,19 @@ path
 : TOK {
     /* XXX - this could be used to check if file present */
     $$ = strdup(yytext);
+    if ($$ == NULL) {
+	yyerror("failed to duplicate path");
+	exit(1);
+    }
 }
 
 tok
 : TOK {
     $$ = strdup(yytext);
+    if ($$ == NULL) {
+	yyerror("failed to duplicate token");
+	exit(1);
+    }
 }
 
 %%
@@ -191,7 +200,7 @@ void yyerror(const char *format, ...)
 {
     va_list args;
 
-    fprintf(stderr, "line %d: ", current_line);
+    fprintf(stderr, "line %llu: ", current_line);
     va_start(args, format);
     vfprintf(stderr, format, args);
     va_end(args);
@@ -202,8 +211,8 @@ int main(void)
 {
     if (mkdir(PAM_D, PAM_D_MODE) != 0) {
 	yyerror(PAM_D " already exists.. aborting");
-	exit(1);
+	return 1;
     }
     yyparse();
-    exit(0);
+    return 0;
 }
