@@ -592,26 +592,20 @@ static int process_line(char *line, const char *home, const char *rhome,
      * Populate polyinstantiated directory structure with appropriate
      * pathnames and the method with which to polyinstantiate.
      */
-    if (strlen(dir) >= sizeof(poly->dir)
-        || strlen(rdir) >= sizeof(poly->rdir)
-	|| strlen(instance_prefix) >= sizeof(poly->instance_prefix)) {
-	pam_syslog(idata->pamh, LOG_NOTICE, "Pathnames too long");
-	goto skipping;
-    }
-    strcpy(poly->dir, dir);
-    strcpy(poly->rdir, rdir);
-    strcpy(poly->instance_prefix, instance_prefix);
-
     if (parse_method(method, poly, idata) != 0) {
 	    goto skipping;
     }
 
-    if (poly->method == TMPDIR) {
-	if (sizeof(poly->instance_prefix) - strlen(poly->instance_prefix) < 7) {
-		pam_syslog(idata->pamh, LOG_NOTICE, "Pathnames too long");
-		goto skipping;
-	}
-	strcat(poly->instance_prefix, "XXXXXX");
+#define COPY_STR(dst, src, apd)                                \
+	(snprintf((dst), sizeof(dst), "%s%s", (src), (apd)) != \
+		  (ssize_t) (strlen(src) + strlen(apd)))
+
+    if (COPY_STR(poly->dir, dir, "")
+	|| COPY_STR(poly->rdir, rdir, "")
+	|| COPY_STR(poly->instance_prefix, instance_prefix,
+		    poly->method == TMPDIR ? "XXXXXX" : "")) {
+	pam_syslog(idata->pamh, LOG_NOTICE, "Pathnames too long");
+	goto skipping;
     }
 
     /*
@@ -1295,13 +1289,12 @@ static int check_inst_parent(char *ipath, struct instance_data *idata)
 	 * admin explicitly instructs to ignore the instance parent
 	 * mode by the "ignore_instance_parent_mode" argument).
 	 */
-	inst_parent = malloc(strlen(ipath)+1);
+	inst_parent = strdup(ipath);
 	if (!inst_parent) {
 		pam_syslog(idata->pamh, LOG_CRIT, "Error allocating pathname string");
 		return PAM_SESSION_ERR;
 	}
 
-	strcpy(inst_parent, ipath);
 	trailing_slash = strrchr(inst_parent, '/');
 	if (trailing_slash)
 		*trailing_slash = '\0';
