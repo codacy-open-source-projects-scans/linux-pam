@@ -443,17 +443,15 @@ _parse_line(const pam_handle_t *pamh, const char *buffer, VAR *var)
 
   length = strcspn(buffer," \t\n");
 
-  if ((var->name = malloc(length + 1)) == NULL) {
-    pam_syslog(pamh, LOG_CRIT, "Couldn't malloc %d bytes", length+1);
-    return PAM_BUF_ERR;
-  }
-
   /*
    * The first thing on the line HAS to be the variable name,
    * it may be the only thing though.
    */
-  strncpy(var->name, buffer, length);
-  var->name[length] = '\0';
+  if ((var->name = strndup(buffer, length)) == NULL) {
+    D(("out of memory"));
+    pam_syslog(pamh, LOG_CRIT, "out of memory");
+    return PAM_BUF_ERR;
+  }
   D(("var->name = <%s>, length = %d", var->name, length));
 
   /*
@@ -498,13 +496,13 @@ _parse_line(const pam_handle_t *pamh, const char *buffer, VAR *var)
       quoteflg++;
     }
     if (length) {
-      if ((*valptr = malloc(length + 1)) == NULL) {
-	D(("Couldn't malloc %d bytes", length+1));
-	pam_syslog(pamh, LOG_CRIT, "Couldn't malloc %d bytes", length+1);
+      if (*valptr != &quote)
+	free(*valptr);
+      if ((*valptr = strndup(ptr, length)) == NULL) {
+	D(("out of memory"));
+	pam_syslog(pamh, LOG_CRIT, "out of memory");
 	return PAM_BUF_ERR;
       }
-      (void)strncpy(*valptr,ptr,length);
-      (*valptr)[length]='\0';
     } else if (quoteflg) {
       quoteflg--;
       *valptr = &quote;      /* a quick hack to handle the empty string */
@@ -573,15 +571,7 @@ _pam_get_item_byname(pam_handle_t *pamh, const char *name)
 static int
 _expand_arg(pam_handle_t *pamh, char **value)
 {
-  const char *orig=*value, *tmpptr=NULL;
-  char *ptr;       /*
-		    * Sure would be nice to use tmpptr but it needs to be
-		    * a constant so that the compiler will shut up when I
-		    * call pam_getenv and _pam_get_item_byname -- sigh
-		    */
-
-  /* No unexpanded variable can be bigger than BUF_SIZE */
-  char type, tmpval[BUF_SIZE];
+  const char *orig=*value;
 
   /* I know this shouldn't be hard-coded but it's so much easier this way */
   char tmp[MAX_ENV] = {};
@@ -607,9 +597,9 @@ _expand_arg(pam_handle_t *pamh, char **value)
 	tmp[idx++] = *orig++;        /* Note the increment */
       } else {
 	/* is it really a good idea to try to log this? */
-	D(("Variable buffer overflow: <%s> + <%s>", tmp, tmpptr));
-	pam_syslog (pamh, LOG_ERR, "Variable buffer overflow: <%s> + <%s>",
-		 tmp, tmpptr);
+	D(("Variable buffer overflow: <%s> + <%c>", tmp, *orig));
+	pam_syslog (pamh, LOG_ERR, "Variable buffer overflow: <%s> + <%c>",
+		 tmp, *orig);
 	goto buf_err;
       }
       continue;
@@ -625,6 +615,14 @@ _expand_arg(pam_handle_t *pamh, char **value)
 	}
 	continue;
       } else {
+	const char *tmpptr=NULL, *tmpval;
+	char *ptr;       /*
+			  * Sure would be nice to use tmpptr but it needs to be
+			  * a constant so that the compiler will shut up when I
+			  * call pam_getenv and _pam_get_item_byname -- sigh
+			  */
+	char type;
+
 	D(("Expandable argument: <%s>", orig));
 	type = *orig;
 	orig+=2;     /* skip the ${ or @{ characters */
@@ -637,8 +635,7 @@ _expand_arg(pam_handle_t *pamh, char **value)
 		     "Unterminated expandable variable: <%s>", orig-2);
 	  goto abort_err;
 	}
-	strncpy(tmpval, orig, sizeof(tmpval));
-	tmpval[sizeof(tmpval)-1] = '\0';
+	tmpval = orig;
 	orig=ptr;
 	/*
 	 * so, we know we need to expand tmpval, it is either
@@ -683,9 +680,9 @@ _expand_arg(pam_handle_t *pamh, char **value)
 	tmp[idx++] = *orig++;        /* Note the increment */
       } else {
 	/* is it really a good idea to try to log this? */
-	D(("Variable buffer overflow: <%s> + <%s>", tmp, tmpptr));
+	D(("Variable buffer overflow: <%s> + <%c>", tmp, *orig));
 	pam_syslog(pamh, LOG_ERR,
-		   "Variable buffer overflow: <%s> + <%s>", tmp, tmpptr);
+		   "Variable buffer overflow: <%s> + <%c>", tmp, *orig);
 	goto buf_err;
       }
     }
@@ -695,24 +692,21 @@ _expand_arg(pam_handle_t *pamh, char **value)
     free(*value);
     if ((*value = malloc(idx + 1)) == NULL) {
       D(("Couldn't malloc %zu bytes for expanded var", idx + 1));
-      pam_syslog (pamh, LOG_CRIT, "Couldn't malloc %lu bytes for expanded var",
-	       (unsigned long)idx+1);
+      pam_syslog (pamh, LOG_CRIT, "Couldn't malloc %zu bytes for expanded var",
+	       idx+1);
       goto buf_err;
     }
   }
   strcpy(*value, tmp);
   pam_overwrite_array(tmp);
-  pam_overwrite_array(tmpval);
   D(("Exit."));
 
   return PAM_SUCCESS;
 buf_err:
   pam_overwrite_array(tmp);
-  pam_overwrite_array(tmpval);
   return PAM_BUF_ERR;
 abort_err:
   pam_overwrite_array(tmp);
-  pam_overwrite_array(tmpval);
   return PAM_ABORT;
 }
 

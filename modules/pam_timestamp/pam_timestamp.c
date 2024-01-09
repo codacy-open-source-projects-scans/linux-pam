@@ -99,13 +99,13 @@ check_dir_perms(pam_handle_t *pamh, const char *tdir)
 {
 	char scratch[BUFLEN] = {};
 	struct stat st;
-	int i;
+	size_t i;
 	/* Check that the directory is "safe". */
 	if ((tdir == NULL) || (strlen(tdir) == 0)) {
 		return PAM_AUTH_ERR;
 	}
 	/* Iterate over the path, checking intermediate directories. */
-	for (i = 0; (tdir[i] != '\0') && (i < (int)sizeof(scratch)); i++) {
+	for (i = 0; (i < sizeof(scratch)) && (tdir[i] != '\0'); i++) {
 		scratch[i] = tdir[i];
 		if ((scratch[i] == '/') || (tdir[i + 1] == '\0')) {
 			/* We now have the name of a directory in the path, so
@@ -557,7 +557,7 @@ pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **argv)
 		}
 #ifdef USE_LOGIND
 		struct passwd *pwd = pam_modutil_getpwnam(pamh, ruser);
-		if (pwd != NULL) {
+		if (pwd == NULL) {
 		  return PAM_SERVICE_ERR;
 		}
 		if (check_login_time(pwd->pw_uid, then) != PAM_SUCCESS)

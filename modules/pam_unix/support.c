@@ -346,21 +346,24 @@ static void _unix_cleanup(pam_handle_t *pamh UNUSED, void *data, int error_statu
 int _unix_getpwnam(pam_handle_t *pamh, const char *name,
 		   int files, int nis, struct passwd **ret)
 {
-	FILE *passwd;
-	char buf[16384];
-	int matched = 0, buflen;
-	char *slogin, *spasswd, *suid, *sgid, *sgecos, *shome, *sshell, *p;
-	size_t userlen;
+	char *buf = NULL;
+	int matched = 0;
 
-	memset(buf, 0, sizeof(buf));
+	if (!matched && files && strchr(name, ':') == NULL) {
+		FILE *passwd;
 
-	userlen = strlen(name);
-	if (!matched && files && userlen < sizeof(buf) && strchr(name, ':') == NULL) {
 		passwd = fopen("/etc/passwd", "r");
 		if (passwd != NULL) {
-			while (fgets(buf, sizeof(buf), passwd) != NULL) {
-				if ((buf[userlen] == ':') &&
+			size_t n = 0, userlen;
+			ssize_t r;
+
+			userlen = strlen(name);
+
+			while ((r = getline(&buf, &n, passwd)) != -1) {
+				if ((size_t)r > userlen && (buf[userlen] == ':') &&
 				    (strncmp(name, buf, userlen) == 0)) {
+					char *p;
+
 					p = buf + strlen(buf) - 1;
 					while (isspace((unsigned char)*p) && (p >= buf)) {
 						*p-- = '\0';
@@ -368,6 +371,9 @@ int _unix_getpwnam(pam_handle_t *pamh, const char *name,
 					matched = 1;
 					break;
 				}
+			}
+			if (!matched) {
+				_pam_drop(buf);
 			}
 			fclose(passwd);
 		}
@@ -385,9 +391,7 @@ int _unix_getpwnam(pam_handle_t *pamh, const char *name,
 			i = yp_match(domain, "passwd.byname", name,
 				     strlen(name), &userinfo, &len);
 			yp_unbind(domain);
-			if ((i == YPERR_SUCCESS) && ((size_t)len < sizeof(buf))) {
-				strncpy(buf, userinfo, sizeof(buf) - 1);
-				buf[sizeof(buf) - 1] = '\0';
+			if (i == YPERR_SUCCESS && (buf = strdup(userinfo)) != NULL) {
 				matched = 1;
 			}
 		}
@@ -398,70 +402,68 @@ int _unix_getpwnam(pam_handle_t *pamh, const char *name,
 #endif
 
 	if (matched && (ret != NULL)) {
+		char *slogin, *spasswd, *suid, *sgid, *sgecos, *shome, *sshell, *p;
+		size_t retlen;
+
 		*ret = NULL;
 
 		slogin = buf;
 
 		spasswd = strchr(slogin, ':');
 		if (spasswd == NULL) {
-			return matched;
+			goto fail;
 		}
 		*spasswd++ = '\0';
 
 		suid = strchr(spasswd, ':');
 		if (suid == NULL) {
-			return matched;
+			goto fail;
 		}
 		*suid++ = '\0';
 
 		sgid = strchr(suid, ':');
 		if (sgid == NULL) {
-			return matched;
+			goto fail;
 		}
 		*sgid++ = '\0';
 
 		sgecos = strchr(sgid, ':');
 		if (sgecos == NULL) {
-			return matched;
+			goto fail;
 		}
 		*sgecos++ = '\0';
 
 		shome = strchr(sgecos, ':');
 		if (shome == NULL) {
-			return matched;
+			goto fail;
 		}
 		*shome++ = '\0';
 
 		sshell = strchr(shome, ':');
 		if (sshell == NULL) {
-			return matched;
+			goto fail;
 		}
 		*sshell++ = '\0';
 
-		buflen = sizeof(struct passwd) +
+		retlen = sizeof(struct passwd) +
 			 strlen(slogin) + 1 +
 			 strlen(spasswd) + 1 +
 			 strlen(sgecos) + 1 +
 			 strlen(shome) + 1 +
 			 strlen(sshell) + 1;
-		*ret = malloc(buflen);
+		*ret = calloc(retlen, sizeof(char));
 		if (*ret == NULL) {
-			return matched;
+			goto fail;
 		}
-		memset(*ret, '\0', buflen);
 
 		(*ret)->pw_uid = strtol(suid, &p, 10);
 		if ((strlen(suid) == 0) || (*p != '\0')) {
-			free(*ret);
-			*ret = NULL;
-			return matched;
+			goto fail;
 		}
 
 		(*ret)->pw_gid = strtol(sgid, &p, 10);
 		if ((strlen(sgid) == 0) || (*p != '\0')) {
-			free(*ret);
-			*ret = NULL;
-			return matched;
+			goto fail;
 		}
 
 		p = ((char*)(*ret)) + sizeof(struct passwd);
@@ -475,15 +477,22 @@ int _unix_getpwnam(pam_handle_t *pamh, const char *name,
 		p += strlen(p) + 1;
 		(*ret)->pw_shell = strcpy(p, sshell);
 
-		snprintf(buf, sizeof(buf), "_pam_unix_getpwnam_%s", name);
+		_pam_drop(buf);
+		if (asprintf(&buf, "_pam_unix_getpwnam_%s", name) < 0) {
+			buf = NULL;
+			goto fail;
+		}
 
 		if (pam_set_data(pamh, buf,
 				 *ret, _unix_cleanup) != PAM_SUCCESS) {
-			free(*ret);
-			*ret = NULL;
+			goto fail;
 		}
 	}
 
+	return matched;
+fail:
+	_pam_drop(buf);
+	_pam_drop(*ret);
 	return matched;
 }
 

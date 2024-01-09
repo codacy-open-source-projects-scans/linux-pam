@@ -156,7 +156,7 @@ call_exec (const char *pam_type, pam_handle_t *pamh,
 
   if (expose_authtok == 1)
     {
-      if (strcmp (pam_type, "auth") != 0)
+      if (strcmp (pam_type, "auth") != 0 && strcmp (pam_type, "password") != 0)
 	{
 	  pam_syslog (pamh, LOG_ERR,
 		      "expose_authtok not supported for type %s", pam_type);
@@ -268,9 +268,10 @@ call_exec (const char *pam_type, pam_handle_t *pamh,
 
       if (use_stdout)
 	{
-	  char buf[4096];
+	  char *buf = NULL;
+	  size_t n = 0;
 	  close(stdout_fds[1]);
-	  while (fgets(buf, sizeof(buf), stdout_file) != NULL)
+	  while (getline(&buf, &n, stdout_file) != -1)
 	    {
 	      size_t len;
 	      len = strlen(buf);
@@ -278,6 +279,7 @@ call_exec (const char *pam_type, pam_handle_t *pamh,
 		buf[len-1] = '\0';
 	      pam_info(pamh, "%s", buf);
 	    }
+	  free(buf);
 	  fclose(stdout_file);
 	}
 
@@ -436,7 +438,7 @@ call_exec (const char *pam_type, pam_handle_t *pamh,
 	  _exit (err);
 	}
 
-      arggv = calloc (argc + 4, sizeof (char *));
+      arggv = calloc ((size_t) argc + 1, sizeof (char *));
       if (arggv == NULL)
 	_exit (ENOMEM);
 

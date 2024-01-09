@@ -339,17 +339,18 @@ static int _unix_run_update_binary(pam_handle_t *pamh, unsigned long long ctrl, 
 
 static int check_old_password(const char *forwho, const char *newpass)
 {
-	static char buf[16384];
+	char *buf = NULL;
 	char *s_pas;
 	int retval = PAM_SUCCESS;
 	FILE *opwfile;
+	size_t n = 0;
 	size_t len = strlen(forwho);
 
 	opwfile = fopen(OLD_PASSWORDS_FILE, "r");
 	if (opwfile == NULL)
 		return PAM_ABORT;
 
-	while (fgets(buf, 16380, opwfile)) {
+	while (getline(&buf, &n, opwfile) != -1) {
 		if (!strncmp(buf, forwho, len) && (buf[len] == ':' ||
 			buf[len] == ',')) {
 			char *sptr;
@@ -371,6 +372,7 @@ static int check_old_password(const char *forwho, const char *newpass)
 			break;
 		}
 	}
+	free(buf);
 	fclose(opwfile);
 
 	return retval;
@@ -601,6 +603,7 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags, int argc, const char **argv)
 	int remember = -1;
 	int rounds = 0;
 	int pass_min_len = 0;
+	struct passwd *pwd;
 
 	/* <DO NOT free() THESE> */
 	const char *user;
@@ -646,21 +649,18 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags, int argc, const char **argv)
 	 * getpwnam() doesn't tell you *where* the information it gives you
 	 * came from, nor should it.  That's our job.
 	 */
-	if (_unix_comesfromsource(pamh, user, 1, on(UNIX_NIS, ctrl)) == 0) {
+	if (_unix_getpwnam(pamh, user, 1, on(UNIX_NIS, ctrl), &pwd) == 0) {
 		pam_syslog(pamh, LOG_DEBUG,
 			 "user \"%s\" does not exist in /etc/passwd%s",
 			 user, on(UNIX_NIS, ctrl) ? " or NIS" : "");
 		return PAM_USER_UNKNOWN;
-	} else {
-		struct passwd *pwd;
-		_unix_getpwnam(pamh, user, 1, 1, &pwd);
-		if (pwd == NULL) {
-			pam_syslog(pamh, LOG_DEBUG,
-				"user \"%s\" has corrupted passwd entry",
-				user);
-			return PAM_USER_UNKNOWN;
-		}
+	} else if (pwd == NULL) {
+		pam_syslog(pamh, LOG_DEBUG,
+			 "user \"%s\" has corrupted passwd entry",
+			 user);
+		return PAM_USER_UNKNOWN;
 	}
+	_pam_drop(pwd);
 
 	/*
 	 * This is not an AUTH module!
