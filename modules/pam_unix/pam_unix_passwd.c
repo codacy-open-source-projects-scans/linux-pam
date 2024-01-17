@@ -286,7 +286,7 @@ static int _unix_run_update_binary(pam_handle_t *pamh, unsigned long long ctrl, 
 	DIAG_POP_IGNORE_CAST_QUAL;
 
 	/* should not get here: exit with error */
-	D(("helper binary is not available"));
+	pam_syslog(pamh, LOG_ERR, "failed to execute %s: %m", UPDATE_HELPER);
 	_exit(PAM_AUTHINFO_UNAVAIL);
     } else if (child > 0) {
 	/* wait for child */
@@ -346,19 +346,18 @@ static int check_old_password(const char *forwho, const char *newpass)
 	size_t n = 0;
 	size_t len = strlen(forwho);
 
-	opwfile = fopen(OLD_PASSWORDS_FILE, "r");
+	opwfile = fopen(OLD_PASSWORDS_FILE, "re");
 	if (opwfile == NULL)
 		return PAM_ABORT;
 
-	while (getline(&buf, &n, opwfile) != -1) {
-		if (!strncmp(buf, forwho, len) && (buf[len] == ':' ||
-			buf[len] == ',')) {
+	for (; getline(&buf, &n, opwfile) != -1; pam_overwrite_n(buf, n)) {
+		if (!strncmp(buf, forwho, len) && buf[len] == ':') {
 			char *sptr;
 			buf[strlen(buf) - 1] = '\0';
-			/* s_luser = */ strtok_r(buf, ":,", &sptr);
-			/* s_uid = */ strtok_r(NULL, ":,", &sptr);
-			/* s_npas = */ strtok_r(NULL, ":,", &sptr);
-			s_pas = strtok_r(NULL, ":,", &sptr);
+			/* s_luser = */ strtok_r(buf, ":", &sptr);
+			/* s_uid = */ strtok_r(NULL, ":", &sptr);
+			/* s_npas = */ strtok_r(NULL, ":", &sptr);
+			s_pas = strtok_r(NULL, ",", &sptr);
 			while (s_pas != NULL) {
 				char *md5pass = Goodcrypt_md5(newpass, s_pas);
 				if (md5pass == NULL || !strcmp(md5pass, s_pas)) {
@@ -366,12 +365,13 @@ static int check_old_password(const char *forwho, const char *newpass)
 					retval = PAM_AUTHTOK_ERR;
 					break;
 				}
-				s_pas = strtok_r(NULL, ":,", &sptr);
+				s_pas = strtok_r(NULL, ",", &sptr);
 				_pam_delete(md5pass);
 			}
 			break;
 		}
 	}
+	pam_overwrite_n(buf, n);
 	free(buf);
 	fclose(opwfile);
 
@@ -660,7 +660,6 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags, int argc, const char **argv)
 			 user);
 		return PAM_USER_UNKNOWN;
 	}
-	_pam_drop(pwd);
 
 	/*
 	 * This is not an AUTH module!

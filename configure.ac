@@ -263,9 +263,10 @@ AC_ARG_ENABLE(txt_stylesheet,
 	TXT_STYLESHEET=$enableval, TXT_STYLESHEET=http://docbook.sourceforge.net/release/xsl-ns/current/html/docbook.xsl)
 
 
+${MKDIR_P} doc
 AC_SUBST(TXT_STYLESHEET)
 # It has to be TXT_STYLESHEET otherwise a html tree will be generated while generating all README files.
-sed "s+HTML_STYLESHEET+$TXT_STYLESHEET+g" <doc/custom-html.xsl.in >doc/custom-html.xsl
+sed "s+HTML_STYLESHEET+$TXT_STYLESHEET+g" <$srcdir/doc/custom-html.xsl.in >doc/custom-html.xsl
 
 AC_ARG_ENABLE(pdf_stylesheet,
 	AS_HELP_STRING([--enable-pdf-stylesheet=FILE],[pdf stylesheet path @<:@default=http://docbook.sourceforge.net/release/xsl-ns/current/fo/docbook.xsl@:>@]),
@@ -278,7 +279,7 @@ AC_ARG_ENABLE(man_stylesheet,
 
 
 AC_SUBST(MAN_STYLESHEET)
-sed "s+MAN_STYLESHEET+$MAN_STYLESHEET+g" <doc/custom-man.xsl.in >doc/custom-man.xsl
+sed "s+MAN_STYLESHEET+$MAN_STYLESHEET+g" <$srcdir/doc/custom-man.xsl.in >doc/custom-man.xsl
 
 AC_ARG_ENABLE(securedir,
 	AS_HELP_STRING([--enable-securedir=DIR],[path to location of PAMs @<:@default=$libdir/security@:>@]),
@@ -528,6 +529,7 @@ fi
 AC_ARG_ENABLE([selinux],
         AS_HELP_STRING([--disable-selinux],[do not use SELinux]),
         WITH_SELINUX=$enableval, WITH_SELINUX=yes)
+AM_CONDITIONAL([WITH_SELINUX], [test "$WITH_SELINUX" = "yes"])
 if test "$WITH_SELINUX" = "yes" ; then
   AC_CHECK_LIB([selinux],[getfilecon], LIBSELINUX="-lselinux", LIBSELINUX="")
 else
@@ -547,9 +549,11 @@ LOGIND_CFLAGS=
 SYSTEMD_LIBS=
 AC_ARG_ENABLE([logind],
   AS_HELP_STRING([--disable-logind], [Disable logind support]),
-  [WITH_LOGIND=$enableval], [WITH_LOGIND=yes])
-if test "$WITH_LOGIND" = "yes"; then
+  [WITH_LOGIND=$enableval], [WITH_LOGIND=check])
+if test "$WITH_LOGIND" = "check"; then
   PKG_CHECK_MODULES([SYSTEMD], [libsystemd >= 254], [LOGIND_CFLAGS="-DUSE_LOGIND=1 $SYSTEMD_CFLAGS"], [:])
+elif test "$WITH_LOGIND" = "yes"; then
+  PKG_CHECK_MODULES([SYSTEMD], [libsystemd >= 254], [LOGIND_CFLAGS="-DUSE_LOGIND=1 $SYSTEMD_CFLAGS"], [])
 fi
 AC_SUBST([LOGIND_CFLAGS])
 AC_SUBST([SYSTEMD_LIBS])
@@ -638,7 +642,7 @@ AC_CHECK_FUNCS(explicit_bzero memset_explicit)
 AC_CHECK_FUNCS([ruserok_af ruserok], [break])
 AC_CHECK_FUNCS(close_range)
 
-dnl For module/pam_timestamp
+dnl For libpam/pam_delay and modules/pam_timestamp
 AC_CHECK_HEADERS([sys/random.h])
 dnl May require libbsd/libSystem on non-Linux platforms
 AC_CHECK_FUNCS(getrandom)

@@ -28,7 +28,7 @@
 
 /*
  * walk a stack of modules.  Interpret the administrator's instructions
- * when combining the return code of each module.
+ * when combining the return codes of each module.
  */
 
 static int _pam_dispatch_aux(pam_handle_t *pamh, int flags, struct handler *h,
@@ -240,7 +240,7 @@ static int _pam_dispatch_aux(pam_handle_t *pamh, int flags, struct handler *h,
 	    if ( impression != _PAM_NEGATIVE ) {
 		impression = _PAM_NEGATIVE;
 	        /* Don't return with PAM_IGNORE as status */
-	        if ( retval == PAM_IGNORE )
+		if ( retval == PAM_IGNORE )
 		    status = PAM_MUST_FAIL_CODE;
 		else
 		    status = retval;

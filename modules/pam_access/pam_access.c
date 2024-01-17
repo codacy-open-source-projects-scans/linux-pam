@@ -99,6 +99,7 @@ struct login_info {
     int debug;				/* Print debugging messages. */
     int only_new_group_syntax;		/* Only allow group entries of the form "(xyz)" */
     int noaudit;			/* Do not audit denials */
+    int quiet_log;			/* Do not log denials */
     const char *fs;			/* field separator */
     const char *sep;			/* list-element separator */
     int from_remote_host;               /* If PAM_RHOST was used for from */
@@ -115,6 +116,7 @@ parse_args(pam_handle_t *pamh, struct login_info *loginfo,
     int i;
 
     loginfo->noaudit = NO;
+    loginfo->quiet_log = NO;
     loginfo->debug = NO;
     loginfo->only_new_group_syntax = NO;
     loginfo->fs = ":";
@@ -150,6 +152,8 @@ parse_args(pam_handle_t *pamh, struct login_info *loginfo,
 	    loginfo->only_new_group_syntax = YES;
 	} else if (strcmp (argv[i], "noaudit") == 0) {
 	    loginfo->noaudit = YES;
+	} else if (strcmp (argv[i], "quiet_log") == 0) {
+	    loginfo->quiet_log = YES;
 	} else {
 	    pam_syslog(pamh, LOG_ERR, "unrecognized option [%s]", argv[i]);
 	}
@@ -254,7 +258,7 @@ typedef int match_func (pam_handle_t *, char *, struct login_info *);
 static int list_match (pam_handle_t *, char *, char *, struct login_info *,
 		       match_func *);
 static int user_match (pam_handle_t *, char *, struct login_info *);
-static int group_match (pam_handle_t *, const char *, const char *, int);
+static int group_match (pam_handle_t *, char *, const char *, int);
 static int from_match (pam_handle_t *, char *, struct login_info *);
 static int remote_match (pam_handle_t *, char *, struct login_info *);
 static int string_match (pam_handle_t *, const char *, const char *, int);
@@ -667,11 +671,8 @@ user_match (pam_handle_t *pamh, char *tok, struct login_info *item)
 /* group_match - match a username against token named group */
 
 static int
-group_match (pam_handle_t *pamh, const char *tok, const char* usr,
-    int debug)
+group_match (pam_handle_t *pamh, char *tok, const char* usr, int debug)
 {
-    char grptok[BUFSIZ] = {};
-
     if (debug)
         pam_syslog (pamh, LOG_DEBUG,
 		    "group_match: grp=%s, user=%s", tok, usr);
@@ -680,9 +681,10 @@ group_match (pam_handle_t *pamh, const char *tok, const char* usr,
         return NO;
 
     /* token is received under the format '(...)' */
-    strncpy(grptok, tok + 1, strlen(tok) - 2);
+    tok++;
+    tok[strlen(tok) - 1] = '\0';
 
-    if (pam_modutil_user_in_group_nam_nam(pamh, usr, grptok))
+    if (pam_modutil_user_in_group_nam_nam(pamh, usr, tok))
         return YES;
 
   return NO;
@@ -975,9 +977,8 @@ network_netmask_match (pam_handle_t *pamh,
 
 /* --- public PAM management functions --- */
 
-int
-pam_sm_authenticate (pam_handle_t *pamh, int flags UNUSED,
-		     int argc, const char **argv)
+static int
+pam_access(pam_handle_t *pamh, int argc, const char **argv)
 {
     struct login_info loginfo;
     const char *user=NULL;
@@ -1107,8 +1108,10 @@ pam_sm_authenticate (pam_handle_t *pamh, int flags UNUSED,
     if (rv) {
 	return (PAM_SUCCESS);
     } else {
-	pam_syslog(pamh, LOG_ERR,
-                   "access denied for user `%s' from `%s'",user,from);
+	if (!loginfo.quiet_log) {
+	    pam_syslog(pamh, LOG_ERR,
+	               "access denied for user `%s' from `%s'",user,from);
+	}
 	return (PAM_PERM_DENIED);
     }
 }
@@ -1121,31 +1124,38 @@ pam_sm_setcred (pam_handle_t *pamh UNUSED, int flags UNUSED,
 }
 
 int
-pam_sm_acct_mgmt (pam_handle_t *pamh, int flags,
-		  int argc, const char **argv)
-{
-  return pam_sm_authenticate (pamh, flags, argc, argv);
-}
-
-int
-pam_sm_open_session(pam_handle_t *pamh, int flags,
+pam_sm_authenticate(pam_handle_t *pamh, int flags UNUSED,
 		    int argc, const char **argv)
 {
-  return pam_sm_authenticate(pamh, flags, argc, argv);
+  return pam_access(pamh, argc, argv);
 }
 
 int
-pam_sm_close_session(pam_handle_t *pamh, int flags,
-		     int argc, const char **argv)
-{
-  return pam_sm_authenticate(pamh, flags, argc, argv);
-}
-
-int
-pam_sm_chauthtok(pam_handle_t *pamh, int flags,
+pam_sm_acct_mgmt(pam_handle_t *pamh, int flags UNUSED,
 		 int argc, const char **argv)
 {
-  return pam_sm_authenticate(pamh, flags, argc, argv);
+  return pam_access(pamh, argc, argv);
+}
+
+int
+pam_sm_open_session(pam_handle_t *pamh, int flags UNUSED,
+		    int argc, const char **argv)
+{
+  return pam_access(pamh, argc, argv);
+}
+
+int
+pam_sm_close_session(pam_handle_t *pamh, int flags UNUSED,
+		     int argc, const char **argv)
+{
+  return pam_access(pamh, argc, argv);
+}
+
+int
+pam_sm_chauthtok(pam_handle_t *pamh, int flags UNUSED,
+		 int argc, const char **argv)
+{
+  return pam_access(pamh, argc, argv);
 }
 
 /* end of module definition */

@@ -78,8 +78,6 @@
 
 #define DEFAULT_OLD_PASSWORDS_FILE SCONFIGDIR "/opasswd"
 
-#define DEFAULT_BUFLEN 4096
-
 typedef struct {
   char *user;
   char *uid;
@@ -88,7 +86,6 @@ typedef struct {
 } opwd;
 
 #ifdef HELPER_COMPILE
-PAM_FORMAT((printf, 2, 3))
 void
 helper_log_err(int err, const char *format, ...)
 {
@@ -172,30 +169,20 @@ check_old_pass, const char *user, const char *newpass, const char *filename, int
 
   while (!feof (oldpf))
     {
-      char *cp, *tmp;
       ssize_t n = getline (&buf, &buflen, oldpf);
-
-      cp = buf;
 
       if (n < 1)
         break;
 
-      tmp = strchr (cp, '#');  /* remove comments */
-      if (tmp)
-        *tmp = '\0';
-      while (isspace ((unsigned char)*cp))    /* remove spaces and tabs */
-        ++cp;
-      if (*cp == '\0')        /* ignore empty lines */
+      buf[strcspn(buf, "\n")] = '\0';
+      if (buf[0] == '\0')        /* ignore empty lines */
         continue;
 
-      if (cp[strlen (cp) - 1] == '\n')
-        cp[strlen (cp) - 1] = '\0';
-
-      if (strncmp (cp, user, strlen (user)) == 0 &&
-          cp[strlen (user)] == ':')
+      if (strncmp (buf, user, strlen (user)) == 0 &&
+          buf[strlen (user)] == ':')
         {
           /* We found the line we needed */
-	  if (parse_entry (cp, &entry) == 0)
+	  if (parse_entry (buf, &entry) == 0)
 	    {
 	      found = 1;
 	      break;
@@ -363,13 +350,12 @@ save_old_pass, const char *user, int howmany, const char *filename, int debug UN
   if (!do_create)
     while (!feof (oldpf))
       {
-	char *cp, *tmp, *save;
+	char *save;
 	ssize_t n = getline (&buf, &buflen, oldpf);
 
 	if (n < 1)
 	  break;
 
-	cp = buf;
 	save = strdup (buf); /* Copy to write the original data back.  */
 	if (save == NULL)
           {
@@ -379,24 +365,17 @@ save_old_pass, const char *user, int howmany, const char *filename, int debug UN
 	    goto error_opasswd;
           }
 
-	tmp = strchr (cp, '#');  /* remove comments */
-	if (tmp)
-	  *tmp = '\0';
-	while (isspace ((unsigned char)*cp))    /* remove spaces and tabs */
-	  ++cp;
-	if (*cp == '\0')        /* ignore empty lines */
+	buf[strcspn(buf, "\n")] = '\0';
+	if (buf[0] == '\0')        /* ignore empty lines */
 	  goto write_old_data;
 
-	if (cp[strlen (cp) - 1] == '\n')
-	  cp[strlen (cp) - 1] = '\0';
-
-	if (strncmp (cp, user, strlen (user)) == 0 &&
-	    cp[strlen (user)] == ':')
+	if (strncmp (buf, user, strlen (user)) == 0 &&
+	    buf[strlen (user)] == ':')
 	  {
 	    /* We found the line we needed */
 	    opwd entry;
 
-	    if (parse_entry (cp, &entry) == 0)
+	    if (parse_entry (buf, &entry) == 0)
 	      {
 		char *out = NULL;
 
@@ -405,9 +384,9 @@ save_old_pass, const char *user, int howmany, const char *filename, int debug UN
 		/* Don't save the current password twice */
 		if (entry.old_passwords && entry.old_passwords[0] != '\0')
 		  {
-		    char *last = entry.old_passwords;
+		    char *cp = entry.old_passwords;
+		    char *last = cp;
 
-		    cp = entry.old_passwords;
 		    entry.count = 1;  /* Don't believe the count */
 		    while ((cp = strchr (cp, ',')) != NULL)
 		      {

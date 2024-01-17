@@ -54,10 +54,9 @@ pam_vinfo.3: pam_info.3
 pam_vprompt.3: pam_prompt.3
 pam_vsyslog.3: pam_syslog.3
 pam.d.5: pam.conf.5
-	test -f $(srcdir)/pam\\.d.5 && mv $(srcdir)/pam\\.d.5 $(srcdir)/pam.d.5 ||:
 
 pam_get_item.3: pam_item_types_std.inc.xml pam_item_types_ext.inc.xml
 pam_set_data.3: pam_item_types_std.inc.xml pam_item_types_ext.inc.xml
 pam.conf.5: pam.conf-desc.xml pam.conf-dir.xml pam.conf-syntax.xml
--include $(top_srcdir)/Make.xml.rules
+-include $(top_builddir)/Make.xml.rules
 endif

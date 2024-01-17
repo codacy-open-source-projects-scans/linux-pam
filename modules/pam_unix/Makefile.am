@@ -8,9 +8,17 @@ MAINTAINERCLEANFILES = $(MANS) README
 EXTRA_DIST = md5.c md5_crypt.c lckpwdf.-c yppasswd_xdr.c $(XMLS) CHANGELOG
 
 if HAVE_DOC
-dist_man_MANS = pam_unix.8 unix_chkpwd.8 unix_update.8
+dist_man_MANS = pam_unix.8 unix_chkpwd.8
+if WITH_SELINUX
+dist_man_MANS += unix_update.8
 endif
-XMLS = README.xml pam_unix.8.xml unix_chkpwd.8.xml unix_update.8.xml
+endif
+
+XMLS = README.xml pam_unix.8.xml unix_chkpwd.8.xml
+if WITH_SELINUX
+XMLS += unix_update.8.xml
+endif
+
 dist_check_SCRIPTS = tst-pam_unix
 TESTS = $(dist_check_SCRIPTS)
 
@@ -35,9 +43,12 @@ pam_unix_la_LIBADD = $(top_builddir)/libpam/libpam.la \
 
 securelib_LTLIBRARIES = pam_unix.la
 
-noinst_HEADERS = md5.h support.h yppasswd.h bigcrypt.h passverify.h
+noinst_HEADERS = audit.h md5.h support.h yppasswd.h bigcrypt.h passverify.h
 
-sbin_PROGRAMS = unix_chkpwd unix_update
+sbin_PROGRAMS = unix_chkpwd
+if WITH_SELINUX
+sbin_PROGRAMS += unix_update
+endif
 
 noinst_PROGRAMS = bigcrypt
 
@@ -52,19 +63,21 @@ bigcrypt_SOURCES = bigcrypt.c bigcrypt_main.c
 bigcrypt_CFLAGS = $(AM_CFLAGS)
 bigcrypt_LDADD = @LIBCRYPT@
 
-unix_chkpwd_SOURCES = unix_chkpwd.c md5_good.c md5_broken.c bigcrypt.c \
+unix_chkpwd_SOURCES = unix_chkpwd.c audit.c md5_good.c md5_broken.c bigcrypt.c \
 	passverify.c
 unix_chkpwd_CFLAGS = $(AM_CFLAGS) @EXE_CFLAGS@ -DHELPER_COMPILE=\"unix_chkpwd\"
 unix_chkpwd_LDFLAGS = @EXE_LDFLAGS@
 unix_chkpwd_LDADD = @LIBCRYPT@ @LIBSELINUX@ @LIBAUDIT@
 
-unix_update_SOURCES = unix_update.c md5_good.c md5_broken.c bigcrypt.c \
+if WITH_SELINUX
+unix_update_SOURCES = unix_update.c audit.c md5_good.c md5_broken.c bigcrypt.c \
 	passverify.c
 unix_update_CFLAGS = $(AM_CFLAGS) @EXE_CFLAGS@ -DHELPER_COMPILE=\"unix_update\"
 unix_update_LDFLAGS = @EXE_LDFLAGS@
-unix_update_LDADD = @LIBCRYPT@ @LIBSELINUX@
+unix_update_LDADD = @LIBCRYPT@ @LIBSELINUX@ @LIBAUDIT@
+endif
 
 if ENABLE_REGENERATE_MAN
 dist_noinst_DATA = README
--include $(top_srcdir)/Make.xml.rules
+-include $(top_builddir)/Make.xml.rules
 endif
