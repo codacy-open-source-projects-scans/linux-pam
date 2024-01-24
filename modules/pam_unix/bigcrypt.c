@@ -67,12 +67,11 @@ char *bigcrypt(const char *key, const char *salt)
 		return NULL;
 	}
 #ifdef HAVE_CRYPT_R
-	cdata = malloc(sizeof(*cdata));
+	cdata = calloc(1, sizeof(*cdata));
 	if(!cdata) {
 		free(dec_c2_cryptbuf);
 		return NULL;
 	}
-	cdata->initialized = 0;
 #endif
 
 	/* fill KEYBUF_SIZE with key */
@@ -110,6 +109,7 @@ char *bigcrypt(const char *key, const char *salt)
 		pam_overwrite_array(keybuf);
 		free(dec_c2_cryptbuf);
 #ifdef HAVE_CRYPT_R
+		pam_overwrite_object(cdata);
 		free(cdata);
 #endif
 		return NULL;

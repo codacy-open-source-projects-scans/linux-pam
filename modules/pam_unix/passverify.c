@@ -144,9 +144,8 @@ PAMH_ARG_DECL(int verify_pwd_hash,
 #endif
 #ifdef HAVE_CRYPT_R
 			struct crypt_data *cdata;
-			cdata = malloc(sizeof(*cdata));
+			cdata = calloc(1, sizeof(*cdata));
 			if (cdata != NULL) {
-				cdata->initialized = 0;
 				pp = x_strdup(crypt_r(p, hash, cdata));
 				pam_overwrite_object(cdata);
 				free(cdata);
@@ -314,7 +313,6 @@ PAMH_ARG_DECL(int check_shadow_expiry,
 	}
 	if (spent->sp_lstchg < 0) {
 		D(("password aging disabled"));
-		*daysleft = 0;
 		return PAM_SUCCESS;
 	}
 	if (curdays < spent->sp_lstchg) {
@@ -504,9 +502,8 @@ PAMH_ARG_DECL(char * create_password_hash,
 #endif /* CRYPT_GENSALT_IMPLEMENTS_AUTO_ENTROPY */
 #ifdef HAVE_CRYPT_R
 	sp = NULL;
-	cdata = malloc(sizeof(*cdata));
+	cdata = calloc(1, sizeof(*cdata));
 	if (cdata != NULL) {
-		cdata->initialized = 0;
 		sp = crypt_r(password, salt, cdata);
 	}
 #else

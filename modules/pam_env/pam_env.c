@@ -6,15 +6,6 @@
  * template for this file (via pam_mail)
  */
 
-#define DEFAULT_ETC_ENVFILE     "/etc/environment"
-#ifdef VENDORDIR
-#define VENDOR_DEFAULT_ETC_ENVFILE (VENDORDIR "/environment")
-#endif
-#define DEFAULT_READ_ENVFILE    1
-
-#define DEFAULT_USER_ENVFILE    ".pam_environment"
-#define DEFAULT_USER_READ_ENVFILE 0
-
 #include "config.h"
 
 #include <ctype.h>
@@ -51,6 +42,15 @@ typedef struct var {
   char *defval;
   char *override;
 } VAR;
+
+#define DEFAULT_ETC_ENVFILE     "/etc/environment"
+#ifdef VENDORDIR
+#define VENDOR_DEFAULT_ETC_ENVFILE (VENDORDIR "/environment")
+#endif
+#define DEFAULT_READ_ENVFILE    1
+
+#define DEFAULT_USER_ENVFILE    ".pam_environment"
+#define DEFAULT_USER_READ_ENVFILE 0
 
 #define DEFAULT_CONF_FILE	(SCONFIGDIR "/pam_env.conf")
 #ifdef VENDOR_SCONFIGDIR
@@ -158,6 +158,28 @@ isDirectory(const char *path) {
    if (stat(path, &statbuf) != 0)
        return 0;
    return S_ISDIR(statbuf.st_mode);
+}
+
+/*
+ * Remove escaped newline from string.
+ *
+ * All occurrences of "\\n" will be removed from string.
+ */
+static void
+econf_unescnl(char *val)
+{
+    char *dest, *p;
+
+    dest = p = val;
+
+    while (*p != '\0') {
+      if (p[0] == '\\' && p[1] == '\n') {
+	p += 2;
+      } else {
+	*dest++ = *p++;
+      }
+    }
+    *dest = '\0';
 }
 
 static int
@@ -270,6 +292,7 @@ econf_read_file(const pam_handle_t *pamh, const char *filename, const char *deli
 		   keys[i],
 		   econf_errString(error));
       } else {
+        econf_unescnl(val);
         if (asprintf(&(*lines)[i],"%s%c%s", keys[i], delim[0], val) < 0) {
 	  pam_syslog(pamh, LOG_ERR, "Cannot allocate memory.");
           econf_free(keys);
@@ -850,20 +873,20 @@ _parse_config_file(pam_handle_t *pamh, int ctrl, const char *file)
 #ifdef USE_ECONF
     /* If "file" is not NULL, only this file will be parsed. */
     retval = econf_read_file(pamh, file, " \t", PAM_ENV, ".conf", "security", &conf_list);
-#else
+#else /* !USE_ECONF */
     /* Only one file will be parsed. So, file has to be set. */
-    if (file == NULL) /* No filename has been set via argv. */
+    if (file == NULL) { /* No filename has been set via argv. */
       file = DEFAULT_CONF_FILE;
-#ifdef VENDOR_DEFAULT_CONF_FILE
-    /*
-    * Check whether file is available.
-    * If it does not exist, fall back to VENDOR_DEFAULT_CONF_FILE file.
-    */
-    struct stat stat_buffer;
-    if (stat(file, &stat_buffer) != 0 && errno == ENOENT) {
-      file = VENDOR_DEFAULT_CONF_FILE;
+# ifdef VENDOR_DEFAULT_CONF_FILE
+      /*
+       * Check whether DEFAULT_CONF_FILE file is available.
+       * If it does not exist, fall back to VENDOR_DEFAULT_CONF_FILE file.
+       */
+      struct stat stat_buffer;
+      if (stat(file, &stat_buffer) != 0 && errno == ENOENT)
+        file = VENDOR_DEFAULT_CONF_FILE;
+# endif
     }
-#endif
     retval = read_file(pamh, file, &conf_list);
 #endif
 
