@@ -43,13 +43,12 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/file.h>
-#include <sys/stat.h>
 #include <fcntl.h>
 #include <security/pam_modutil.h>
 
 #include "faillock.h"
 
-#define ignore_return(x) if (1==((int)x)) {;}
+#define ignore_return(x) if (1==((int)(x))) {;}
 
 int
 open_tally (const char *dir, const char *user, uid_t uid, int create)

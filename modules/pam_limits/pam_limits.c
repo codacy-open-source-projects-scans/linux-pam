@@ -62,13 +62,13 @@
 #define LIMITS_DEF_KERNEL   5 /* limit was set from /proc/1/limits */
 #define LIMITS_DEF_NONE     6 /* this limit was not set yet */
 
-#define LIMIT_RANGE_ERR    -1 /* error in specified uid/gid range */
+#define LIMIT_RANGE_ERR  (-1) /* error in specified uid/gid range */
 #define LIMIT_RANGE_NONE    0 /* no range specified */
 #define LIMIT_RANGE_ONE     1 /* exact uid/gid specified (:max_uid)*/
 #define LIMIT_RANGE_MIN     2 /* only minimum uid/gid specified (min_uid:) */
 #define LIMIT_RANGE_MM      3 /* both min and max uid/gid specified (min_uid:max_uid) */
 
-static const char *limits_def_names[] = {
+static const char *const limits_def_names[] = {
        "USER",
        "GROUP",
        "ALLGROUP",
@@ -100,11 +100,11 @@ struct pam_limit_s {
     char *login_group;
 };
 
-#define LIMIT_LOGIN RLIM_NLIMITS+1
-#define LIMIT_NUMSYSLOGINS RLIM_NLIMITS+2
+#define LIMIT_LOGIN (RLIM_NLIMITS+1)
+#define LIMIT_NUMSYSLOGINS (RLIM_NLIMITS+2)
 
-#define LIMIT_PRI RLIM_NLIMITS+3
-#define LIMIT_NONEWPRIVS RLIM_NLIMITS+4
+#define LIMIT_PRI (RLIM_NLIMITS+3)
+#define LIMIT_NONEWPRIVS (RLIM_NLIMITS+4)
 
 #define LIMIT_SOFT  1
 #define LIMIT_HARD  2
@@ -323,7 +323,7 @@ check_logins (pam_handle_t *pamh, const char *name, int limit, int ctrl,
 }
 
 #ifdef __linux__
-static const char *lnames[RLIM_NLIMITS] = {
+static const char *const lnames[RLIM_NLIMITS] = {
         [RLIMIT_CPU] = "Max cpu time",
         [RLIMIT_FSIZE] = "Max file size",
         [RLIMIT_DATA] = "Max data size",
@@ -389,7 +389,7 @@ static rlim_t str2rlim_t(char *value) {
         pos--; \
         while (pos && line[pos] != ' ') pos--; \
         if (!pos) continue; \
-        item = line + pos + 1; \
+        (item) = line + pos + 1; \
 }
 
 static void parse_kernel_limits(pam_handle_t *pamh, struct pam_limit_s *pl, int ctrl)
@@ -771,7 +771,6 @@ process_limit (const pam_handle_t *pamh, int source, const char *lim_type,
 	    }
 	}
     }
-    return;
 }
 
 static int
@@ -1256,6 +1255,7 @@ pam_sm_open_session (pam_handle_t *pamh, int flags UNUSED,
     int ctrl;
     struct pam_limit_s plstruct;
     struct pam_limit_s *pl = &plstruct;
+    char *free_filename = NULL;
 
     D(("called."));
 
@@ -1316,13 +1316,18 @@ pam_sm_open_session (pam_handle_t *pamh, int flags UNUSED,
             if (retval != PAM_SUCCESS)
                 break;
         }
-        for (i = 0; filename_list[i] != NULL; i++)
-            free(filename_list[i]);
+        for (i = 0; filename_list[i] != NULL; i++) {
+	    if (filename_list[i] == pl->conf_file)
+		free_filename = filename_list[i];
+	    else
+		free(filename_list[i]);
+	}
         free(filename_list);
     }
 
     if (retval == PAM_IGNORE) {
         D(("the configuration file ('%s') has an applicable '<domain> -' entry", pl->conf_file));
+        free(free_filename);
         free(pl->login_group);
         return PAM_SUCCESS;
     }
@@ -1331,11 +1336,13 @@ out:
     if (retval != PAM_SUCCESS)
     {
 	pam_syslog(pamh, LOG_ERR, "error parsing the configuration file: '%s' ", pl->conf_file);
+	free(free_filename);
 	free(pl->login_group);
 	return retval;
     }
 
     retval = setup_limits(pamh, pwd->pw_name, pwd->pw_uid, ctrl, pl);
+    free(free_filename);
     free(pl->login_group);
     if (retval & LOGIN_ERR)
 	pam_error(pamh, _("There were too many logins for '%s'."),
