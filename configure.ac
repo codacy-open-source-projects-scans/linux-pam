@@ -69,9 +69,6 @@ AC_PROG_CC
 AC_PROG_YACC
 AM_PROG_LEX
 AC_PROG_INSTALL
-AC_PROG_LN_S
-AC_PROG_MAKE_SET
-AM_PROG_CC_C_O
 PAM_LD_AS_NEEDED
 PAM_LD_NO_UNDEFINED
 PAM_LD_O1
@@ -646,26 +643,10 @@ AM_CONDITIONAL([COND_USE_OPENSSL], [test "x$use_openssl" = "xyes"])
 STRINGPARAM_PROFILECONDITIONS="--stringparam profile.condition '$profileconditions'"
 AC_SUBST([STRINGPARAM_PROFILECONDITIONS])
 
-dnl Checks for header files.
-AC_HEADER_DIRENT
-AC_HEADER_SYS_WAIT
-
-dnl For module/pam_lastlog
-AC_CHECK_HEADERS(lastlog.h utmp.h utmpx.h)
-
 dnl Checks for typedefs, structures, and compiler characteristics.
 AC_C_BIGENDIAN
-AC_C_CONST
-AC_TYPE_UID_T
-AC_TYPE_OFF_T
-AC_TYPE_PID_T
-AC_TYPE_SIZE_T
-AC_STRUCT_TM
 
 dnl Checks for library functions.
-AC_TYPE_GETGROUPS
-AC_PROG_GCC_TRADITIONAL
-AC_FUNC_MEMCMP
 AC_CHECK_FUNCS(getdomainname lckpwdf)
 AC_CHECK_FUNCS(getutent_r getpwnam_r getpwuid_r getgrnam_r getgrgid_r getspnam_r getmntent_r)
 AC_CHECK_FUNCS(getgrouplist)
