@@ -16,6 +16,10 @@ dnl By default, everything under PAM is installed below /usr.
 dnl
 AC_PREFIX_DEFAULT(/usr)
 
+dnl for use instead of includedir substitutions in *.pc files
+pkgconfig_includedir=$includedir
+AC_SUBST(pkgconfig_includedir)
+
 dnl and some hacks to use /etc and /lib
 test "${prefix}" = "NONE" && prefix="/usr"
 if test ${prefix} = '/usr'
@@ -701,15 +705,6 @@ AM_GNU_GETTEXT_VERSION([0.18.3])
 AM_GNU_GETTEXT([external])
 AC_CHECK_FUNCS(bindtextdomain)
 AC_CHECK_FUNCS(dngettext)
-
-AH_BOTTOM([#ifdef ENABLE_NLS
-#include <libintl.h>
-#define _(msgid) dgettext(PACKAGE, msgid)
-#define N_(msgid) msgid
-#else
-#define _(msgid) (msgid)
-#define N_(msgid) msgid
-#endif /* ENABLE_NLS */])
 
 dnl
 dnl Check for the availability of the kernel key management facility

@@ -31,9 +31,9 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "config.h"
 #include "pam_private.h"
 #include "pam_inline.h"
+#include "pam_i18n.h"
 
 #include <security/pam_ext.h>
 
