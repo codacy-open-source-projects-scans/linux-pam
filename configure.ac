@@ -269,8 +269,6 @@ AC_ARG_ENABLE(txt_stylesheet,
 
 ${MKDIR_P} doc
 AC_SUBST(TXT_STYLESHEET)
-# It has to be TXT_STYLESHEET otherwise a html tree will be generated while generating all README files.
-sed "s+HTML_STYLESHEET+$TXT_STYLESHEET+g" <$srcdir/doc/custom-html.xsl.in >doc/custom-html.xsl
 
 AC_ARG_ENABLE(pdf_stylesheet,
 	AS_HELP_STRING([--enable-pdf-stylesheet=FILE],[pdf stylesheet path @<:@default=http://docbook.sourceforge.net/release/xsl-ns/current/fo/docbook.xsl@:>@]),
@@ -301,7 +299,7 @@ AC_MSG_RESULT([Defining \$ISA to "$ISA"])
 AC_ARG_ENABLE(sconfigdir,
 	AS_HELP_STRING([--enable-sconfigdir=DIR],[path to module conf files @<:@default=$sysconfdir/security@:>@]),
 	SCONFIGDIR=$enableval, SCONFIGDIR=$sysconfdir/security)
-AC_DEFINE_UNQUOTED([SCONFIGDIR], ["$SCONFIGDIR"],
+AC_DEFINE_UNQUOTED([SCONFIG_DIR], ["$SCONFIGDIR"],
 		   [Directory for PAM modules system configuration files])
 AC_SUBST(SCONFIGDIR)
 
@@ -612,7 +610,7 @@ AC_ARG_ENABLE([vendordir],
 if test -n "$enable_vendordir"; then
   AC_DEFINE_UNQUOTED([VENDORDIR], ["$enable_vendordir"],
 		     [Directory for distribution provided configuration files])
-  AC_DEFINE_UNQUOTED([VENDOR_SCONFIGDIR], ["$enable_vendordir/security"],
+  AC_DEFINE_UNQUOTED([VENDOR_SCONFIG_DIR], ["$enable_vendordir/security"],
 		     [Directory for PAM modules distribution provided configuration files])
   if test "$WITH_ECONF" = "yes" ; then
     STRINGPARAM_VENDORDIR="--stringparam vendordir '$enable_vendordir'"
@@ -728,10 +726,11 @@ AC_DEFINE_UNQUOTED(PAM_USERTYPE_OVERFLOW_UID, $opt_kerneloverflowuid, [Kernel ov
 AC_ARG_WITH([systemdunitdir],
 AS_HELP_STRING([--with-systemdunitdir=DIR], [path to systemd service directory]),
     [],
-    [
-    PKG_CHECK_EXISTS([systemd],
-      [with_systemdunitdir=$($PKG_CONFIG --variable=systemdunitdir systemd)],
-      [with_systemdunitdir='${prefix}/lib/systemd/system'])
+    [AC_MSG_CHECKING([systemd service directory])
+     with_systemdunitdir='${prefix}/lib/systemd/system'
+     PKG_CHECK_EXISTS([systemd],
+                      [with_systemdunitdir=$($PKG_CONFIG --variable=systemdunitdir systemd)])
+     AC_MSG_RESULT([$with_systemdunitdir])
     ])
 AC_SUBST([systemdunitdir], [$with_systemdunitdir])
 
@@ -765,6 +764,8 @@ AS_HELP_STRING([--with-misc-conv-bufsize=<number>],
     [],
     [with_misc_conv_bufsize=4096])
 AC_DEFINE_UNQUOTED(PAM_MISC_CONV_BUFSIZE, $with_misc_conv_bufsize, [libpam_misc misc_conv() buffer size.])
+
+AC_DEFINE_UNQUOTED([LTDIR], [".libs/"], [Libtool subdirectory.])
 
 AM_CONDITIONAL([COND_BUILD_PAM_KEYINIT], [test "$have_key_syscalls" = 1])
 AM_CONDITIONAL([COND_BUILD_PAM_LASTLOG], [test "$ac_cv_func_logwtmp" = yes])

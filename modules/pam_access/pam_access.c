@@ -56,11 +56,11 @@
 #include "pam_cc_compat.h"
 #include "pam_inline.h"
 
-#define PAM_ACCESS_CONFIG	(SCONFIGDIR "/access.conf")
-#define ACCESS_CONF_GLOB	(SCONFIGDIR "/access.d/*.conf")
-#ifdef VENDOR_SCONFIGDIR
-#define VENDOR_PAM_ACCESS_CONFIG (VENDOR_SCONFIGDIR "/access.conf")
-#define VENDOR_ACCESS_CONF_GLOB  (VENDOR_SCONFIGDIR "/access.d/*.conf")
+#define PAM_ACCESS_CONFIG	(SCONFIG_DIR "/access.conf")
+#define ACCESS_CONF_GLOB	(SCONFIG_DIR "/access.d/*.conf")
+#ifdef VENDOR_SCONFIG_DIR
+#define VENDOR_PAM_ACCESS_CONFIG (VENDOR_SCONFIG_DIR "/access.conf")
+#define VENDOR_ACCESS_CONF_GLOB  (VENDOR_SCONFIG_DIR "/access.d/*.conf")
 #endif
 
 /* login_access.c from logdaemon-5.6 with several changes by A.Nogin: */
