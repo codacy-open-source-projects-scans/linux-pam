@@ -1,5 +1,5 @@
 project('Linux-PAM', 'c',
-        version: '1.6.1',
+        version: '1.7.0',
         license: 'BSD-3-Clause OR GPL-2.0-or-later',
         default_options: [
           'b_pie=true',
@@ -198,12 +198,12 @@ foreach ident: check_functions
   endif
 endforeach
 
-enable_pam_keyinit = cc.sizeof('__NR_keyctl', prefix: '#include <sys/syscall.h>') > 0
+enable_pam_keyinit = cc.get_define('__NR_keyctl', prefix: '#include <sys/syscall.h>') != ''
 
 if get_option('mailspool') != ''
   cdata.set_quoted('PAM_PATH_MAILDIR', get_option('mailspool'))
 else
-  have = cc.sizeof('_PATH_MAILDIR', prefix: '#include <paths.h>') > 0
+  have = cc.get_define('_PATH_MAILDIR', prefix: '#include <paths.h>') != ''
   cdata.set('PAM_PATH_MAILDIR', have ? '_PATH_MAILDIR' : '"/var/spool/mail"')
 endif
 
@@ -211,7 +211,9 @@ endif
 libdl = dependency('dl')
 
 
-if not get_option('i18n').disabled()
+if get_option('i18n').disabled()
+  libintl = null_dep
+else
   libintl = dependency('intl', required: get_option('i18n'))
   if libintl.found()
     cdata.set('ENABLE_NLS', 1)
@@ -316,9 +318,16 @@ else
   stringparam_profileconditions += ';no_openssl_hmac'
 endif
 
-
-libsystemd = dependency('libsystemd', version: '>= 254', required: get_option('logind'))
-cdata.set('USE_LOGIND', libsystemd.found() ? 1 : false)
+use_logind = get_option('logind')
+use_elogind = get_option('elogind').require(not use_logind.enabled()).disable_auto_if(use_logind.enabled())
+use_logind = use_logind.disable_auto_if(use_elogind.enabled())
+logind_dep = dependency('libsystemd', version: '>= 254', required: use_logind)
+cdata.set('USE_LIBSYSTEMD', logind_dep.found() ? 1 : false)
+if not logind_dep.found()
+  logind_dep = dependency('libelogind', version: '>= 254', required: use_elogind)
+  cdata.set('USE_LIBELOGIND', logind_dep.found() ? 1 : false)
+endif
+cdata.set('USE_LOGIND', logind_dep.found() ? 1 : false)
 
 systemdunitdir = get_option('systemdunitdir')
 if systemdunitdir == ''
@@ -500,7 +509,7 @@ if enable_docs
   endif
   prog_fop = find_program(
     'fop',
-    required: feature_docs,
+    required: false,
     disabler: true,
   )
 

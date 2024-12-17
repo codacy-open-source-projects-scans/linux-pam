@@ -9,7 +9,6 @@ j=-j`nproc` || j=
 type sudo >/dev/null 2>&1 && sudo=sudo || sudo=
 packages="
 bison
-bzip2
 docbook5-xml
 docbook-xsl-ns
 flex
@@ -20,6 +19,7 @@ libfl-dev
 libselinux1-dev
 libssl-dev
 libxml2-utils
+meson
 pkg-config
 sed
 w3m
@@ -47,15 +47,6 @@ apt_get_install()
 		install -y "$@"
 }
 
-case "${BUILD-}" in
-	meson)
-		packages="$packages meson"
-		;;
-	*)
-		packages="$packages autoconf automake autopoint libtool make"
-		;;
-esac
-
 case "$CC" in
 	gcc-*)
 		retry_if_failed \
@@ -69,6 +60,12 @@ case "$TARGET" in
 		case "$CC" in
 			gcc-*) packages="$packages $CC-multilib" ;;
 		esac
+		;;
+esac
+
+case "${USE_LOGIND-}" in
+	yes)
+		packages="$packages libsystemd-dev"
 		;;
 esac
 

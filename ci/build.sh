@@ -13,6 +13,12 @@ case "${VENDORDIR-}" in
 		;;
 esac
 
+case "${USE_LOGIND-}" in
+	yes)
+		opts="$opts -Dlogind=enabled"
+		;;
+esac
+
 case "${USE_OPENSSL-}" in
 	yes)
 		opts="$opts -Dopenssl=enabled"
@@ -43,6 +49,11 @@ meson setup $opts build
 # instead of all subsequent individual meson commands.
 
 meson compile -v -C build
-mkdir buildroot
-DESTDIR=$(pwd)/buildroot meson install -C build
+mkdir build/destdir
+DESTDIR=$(pwd)/build/destdir meson install -C build
 meson test -v -C build
+
+if git status --porcelain |grep '^?'; then
+	echo >&2 'git status reported untracked files'
+	exit 1
+fi
