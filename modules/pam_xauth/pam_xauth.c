@@ -83,6 +83,10 @@ static const char * const xauthpaths[] = {
 	"/usr/bin/X11/xauth"
 };
 
+#ifndef HOST_NAME_MAX
+# define HOST_NAME_MAX 255
+#endif
+
 /* Run a given command (with a NULL-terminated argument list), feeding it the
  * given input on stdin, and storing any output it generates. */
 static int
@@ -238,7 +242,7 @@ check_acl(pam_handle_t *pamh,
 	char *path = NULL;
 	struct passwd *pwd;
 	FILE *fp = NULL;
-	int i, fd = -1, save_errno;
+	int fd = -1, save_errno;
 	struct stat st;
 	PAM_MODUTIL_DEF_PRIVS(privs);
 
@@ -251,8 +255,7 @@ check_acl(pam_handle_t *pamh,
 		return PAM_SESSION_ERR;
 	}
 	/* Figure out what that file is really named. */
-	i = asprintf(&path, "%s/.xauth/%s", pwd->pw_dir, sense);
-	if (i < 0) {
+	if ((path = pam_asprintf("%s/.xauth/%s", pwd->pw_dir, sense)) == NULL) {
 		pam_syslog(pamh, LOG_ERR,
 			   "cannot allocate path buffer for ~/.xauth/%s",
 			   sense);
@@ -508,8 +511,7 @@ pam_sm_open_session (pam_handle_t *pamh, int flags UNUSED,
 			retval = PAM_SESSION_ERR;
 			goto cleanup;
 		}
-	} else if (asprintf(&cookiefile, "%s/%s", rpwd->pw_dir, XAUTHDEF) < 0) {
-		cookiefile = NULL;
+	} else if ((cookiefile = pam_asprintf("%s/%s", rpwd->pw_dir, XAUTHDEF)) == NULL) {
 		retval = PAM_SESSION_ERR;
 		goto cleanup;
 	}
@@ -552,8 +554,9 @@ pam_sm_open_session (pam_handle_t *pamh, int flags UNUSED,
 
 				/* Append protocol and screen number to host. */
 				screen = display + strcspn(display, ":");
-				if (asprintf(&t, "%s/unix%s",
-					     hostname, screen) >= 0) {
+				if ((t = pam_asprintf("%s/unix%s",
+						      hostname,
+						      screen)) != NULL) {
 					if (debug) {
 						pam_syslog(pamh, LOG_DEBUG,
 							   "no key for `%s', "
@@ -595,9 +598,8 @@ pam_sm_open_session (pam_handle_t *pamh, int flags UNUSED,
 
 		/* Generate the environment variable
 		 * "XAUTHORITY=<homedir>/filename". */
-		if (asprintf(&xauthority, "%s=%s/%s",
-			     XAUTHENV, tpwd->pw_dir, XAUTHTMP) < 0) {
-			xauthority = NULL;
+		if ((xauthority = pam_asprintf("%s=%s/%s", XAUTHENV,
+					       tpwd->pw_dir, XAUTHTMP)) == NULL) {
 			if (debug) {
 				pam_syslog(pamh, LOG_DEBUG, "out of memory");
 			}
@@ -680,7 +682,7 @@ pam_sm_open_session (pam_handle_t *pamh, int flags UNUSED,
 		{
 		  char *d;
 
-		  if (asprintf(&d, "DISPLAY=%s", display) < 0)
+		  if ((d = pam_asprintf("DISPLAY=%s", display)) == NULL)
 		    {
 		      pam_syslog(pamh, LOG_CRIT, "out of memory");
 		      retval = PAM_SESSION_ERR;
@@ -697,7 +699,7 @@ pam_sm_open_session (pam_handle_t *pamh, int flags UNUSED,
 		if ((xauthlocalhostname = getenv("XAUTHLOCALHOSTNAME")) != NULL) {
 		  char *d;
 
-		  if (asprintf(&d, "XAUTHLOCALHOSTNAME=%s", xauthlocalhostname) < 0) {
+		  if ((d = pam_asprintf("XAUTHLOCALHOSTNAME=%s", xauthlocalhostname)) == NULL) {
 		    pam_syslog(pamh, LOG_CRIT, "out of memory");
 		    retval = PAM_SESSION_ERR;
 		    goto cleanup;

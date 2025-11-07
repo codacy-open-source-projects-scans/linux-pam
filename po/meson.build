@@ -1,4 +1,4 @@
-if not find_program('gettext', required: get_option('i18n')).found()
+if not find_program('gettext', required: get_option('i18n'), native: true).found()
   subdir_done()
 endif
 
@@ -10,6 +10,6 @@ i18n.gettext(
   args: [
     '--copyright-holder=Linux-PAM Project',
     '--msgid-bugs-address=https://github.com/linux-pam/linux-pam/issues',
-    '--package-version=1.7.0',
+    '--package-version=1.7.1',
   ],
 )

@@ -188,11 +188,11 @@ format_timestamp_name(char *path, size_t len,
 		      const char *user)
 {
 	if (strcmp(ruser, user) == 0) {
-		return snprintf(path, len, "%s/%s/%s", timestamp_dir,
-				ruser, tty);
+		return pam_snprintf(path, len, "%s/%s/%s", timestamp_dir,
+				    ruser, tty);
 	} else {
-		return snprintf(path, len, "%s/%s/%s:%s", timestamp_dir,
-				ruser, tty, user);
+		return pam_snprintf(path, len, "%s/%s/%s:%s", timestamp_dir,
+				    ruser, tty, user);
 	}
 }
 
@@ -244,7 +244,9 @@ check_login_time(
 		if (strncmp(ruser, ut->ut_user, sizeof(ut->ut_user)) != 0) {
 			continue;
 		}
-		if (oldest_login == 0 || oldest_login > ut->ut_tv.tv_sec) {
+		if (oldest_login == 0 ||
+		    zero_extend_signed_to_ull(oldest_login)
+		    > zero_extend_signed_to_ull(ut->ut_tv.tv_sec)) {
 			oldest_login = ut->ut_tv.tv_sec;
 		}
 	}
@@ -371,7 +373,7 @@ get_timestamp_name(pam_handle_t *pamh, int argc, const char **argv,
 	}
 	/* Generate the name of the file used to cache auth results.  These
 	 * paths should jive with sudo's per-tty naming scheme. */
-	if (format_timestamp_name(path, len, tdir, tty, ruser, user) >= (int)len) {
+	if (format_timestamp_name(path, len, tdir, tty, ruser, user) < 0) {
 		return PAM_AUTH_ERR;
 	}
 	if (debug) {
@@ -850,7 +852,7 @@ main(int argc, char **argv)
 
 	/* Generate the name of the timestamp file. */
 	if (format_timestamp_name(path, sizeof(path), TIMESTAMPDIR,
-				  tty, user, target_user) >= (int) sizeof(path)) {
+				  tty, user, target_user) < 0) {
 		fprintf(stderr, "path too long\n");
 		return 4;
 	}

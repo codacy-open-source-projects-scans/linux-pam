@@ -1,5 +1,5 @@
 project('Linux-PAM', 'c',
-        version: '1.7.0',
+        version: '1.7.1',
         license: 'BSD-3-Clause OR GPL-2.0-or-later',
         default_options: [
           'b_pie=true',
@@ -53,6 +53,7 @@ cdata.set10('DEFAULT_USERGROUPS_SETTING', get_option('usergroups'))
 cdata.set('PAM_USERTYPE_UIDMIN', get_option('uidmin'))
 cdata.set('PAM_USERTYPE_OVERFLOW_UID', get_option('kernel-overflow-uid'))
 cdata.set('PAM_MISC_CONV_BUFSIZE', get_option('misc-conv-bufsize'))
+cdata.set('PAM_UNIX_TRY_GETSPNAM', get_option('pam_unix-try-getspnam') ? 1 : false)
 
 cdata.set_quoted('_PAM_ISA',
   get_option('isadir') != '' ? get_option('isadir') : '../..' / fs.name(libdir) / 'security')
@@ -140,6 +141,7 @@ try_cc_flags = [
   '-Wuninitialized',
   '-Wunused',
   '-Wwrite-strings',
+  '-Wzero-as-null-pointer-constant',
 ]
 add_project_arguments(
   cc.get_supported_arguments(try_cc_flags),
@@ -149,6 +151,7 @@ add_project_link_arguments(
   # --as-needed and --no-undefined are enabled by default
   cc.get_supported_link_arguments([
     '-Wl,--fatal-warnings',
+    '-Wl,--no-undefined-version',
     '-Wl,-O1',
   ]),
   language: 'c')
@@ -262,6 +265,10 @@ foreach f: ['crypt_r']
   endif
 endforeach
 
+libpwaccess = dependency('libpwaccess', required: get_option('pwaccess'))
+if libpwaccess.found()
+  cdata.set('USE_PWACCESS', 1)
+endif
 
 libeconf = dependency('libeconf', version: '>= 0.5.0', required: get_option('econf'))
 if libeconf.found()
@@ -334,10 +341,13 @@ if systemdunitdir == ''
   systemdunitdir = prefixdir / 'lib' / 'systemd' / 'system'
   systemd = dependency('systemd', required: false)
   if systemd.found()
-    systemdunitdir = systemd.get_variable(
+    systemdsystemunitdir = systemd.get_variable(
       pkgconfig: 'systemdsystemunitdir',
       default_value: systemdunitdir,
     )
+    if systemdsystemunitdir.startswith(prefixdir / '')
+      systemdunitdir = systemdsystemunitdir
+    endif
   endif
 endif
 
@@ -486,16 +496,19 @@ if enable_docs
   prog_xsltproc = find_program(
     'xsltproc',
     required: feature_docs,
+    native: true,
     disabler: true,
   )
   prog_xmllint = find_program(
     'xmllint',
     required: feature_docs,
+    native: true,
     disabler: true,
   )
   prog_w3m = find_program(
     'w3m',
     required: false,
+    native: true,
   )
   if prog_w3m.found()
     browser = [prog_w3m, '-T', 'text/html', '-dump']
@@ -503,6 +516,7 @@ if enable_docs
     prog_elinks = find_program(
       'elinks',
       required: feature_docs,
+      native: true,
       disabler: true,
     )
     browser = [prog_elinks, '-no-numbering', '-no-references', '-dump']
@@ -510,12 +524,14 @@ if enable_docs
   prog_fop = find_program(
     'fop',
     required: false,
+    native: true,
     disabler: true,
   )
 
   prog_xmlcatalog = find_program(
     'xmlcatalog',
     required: feature_docs,
+    native: true,
     disabler: true,
   )
   xml_catalog = get_option('xml-catalog')
@@ -597,6 +613,7 @@ endif
 prog_flex = find_program(
   'flex',
   required: false,
+  native: true,
   disabler: true,
 )
 
@@ -604,6 +621,7 @@ yacc_cmd = []
 prog_yacc = find_program(
   'bison',
   required: false,
+  native: true,
 )
 if prog_yacc.found()
   yacc_cmd = [prog_yacc, '-o', '@OUTPUT0@', '--defines=@OUTPUT1@', '@INPUT@']
@@ -611,6 +629,7 @@ else
   prog_yacc = find_program(
     'byacc',
     required: false,
+    native: true,
     disabler: true,
   )
   yacc_cmd = [prog_yacc, '-o', '@OUTPUT0@', '-H', '@OUTPUT1@', '@INPUT@']

@@ -14,6 +14,8 @@ option('elogind', type: 'feature', value: 'auto',
        description: 'logind support in pam_issue, pam_limits, and pam_timestamp via elogind')
 option('openssl', type: 'feature', value: 'disabled',
        description: 'Use OpenSSL crypto libraries in pam_timestamp')
+option('pwaccess', type: 'feature', value: 'auto',
+       description: 'libpwaccess support in pam_unix')
 option('selinux', type: 'feature', value: 'auto',
        description: 'SELinux support')
 option('nis', type: 'feature', value: 'auto',
@@ -85,7 +87,7 @@ option('xauth', type: 'string',
        description: 'Additional path to check for xauth when it is called from pam_xauth')
 option('randomdev', type: 'string',
        description: 'Random device to use instead of /dev/urandom')
-option('vendordir', type: 'string',
+option('vendordir', type: 'string', value: '/usr/share/pam',
        description: 'Distribution provided configuration files directory')
 
 option('pam_userdb', type: 'feature', value: 'auto',
@@ -99,3 +101,5 @@ option('pam_lastlog', type: 'feature', value: 'disabled',
        description: 'pam_lastlog module')
 option('pam_unix', type: 'feature', value: 'auto',
        description: 'pam_unix module')
+option('pam_unix-try-getspnam', type: 'boolean', value: false,
+       description: 'Let pam_unix try getspnam to obtain shadow password file entry before falling back to invoking the helper')

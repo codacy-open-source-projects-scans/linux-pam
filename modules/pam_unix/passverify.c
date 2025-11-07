@@ -23,6 +23,9 @@
 #ifdef HAVE_CRYPT_H
 #include <crypt.h>
 #endif
+#ifdef USE_PWACCESS
+#include <pwaccess.h>
+#endif
 
 #include "pam_cc_compat.h"
 #include "pam_inline.h"
@@ -200,65 +203,51 @@ PAMH_ARG_DECL(int get_account_info,
 	*pwd = pam_modutil_getpwnam(pamh, name);	/* Get password file entry... */
 	*spwdent = NULL;
 
-	if (*pwd != NULL) {
-		if (strcmp((*pwd)->pw_passwd, "*NP*") == 0)
-		{ /* NIS+ */
-#ifdef HELPER_COMPILE
-			uid_t save_euid, save_uid;
-
-			save_euid = geteuid();
-			save_uid = getuid();
-			if (save_uid == (*pwd)->pw_uid) {
-				if (setreuid(save_euid, save_uid))
-					return PAM_CRED_INSUFFICIENT;
-			} else  {
-				if (setreuid(0, -1))
-					return PAM_CRED_INSUFFICIENT;
-				if (setreuid(-1, (*pwd)->pw_uid)) {
-					if (setreuid(-1, 0)
-					    || setreuid(0, -1)
-					    || setreuid(-1, (*pwd)->pw_uid)) {
-						return PAM_CRED_INSUFFICIENT;
-					}
-				}
-			}
-
-			*spwdent = pam_modutil_getspnam(pamh, name);
-			if (save_uid == (*pwd)->pw_uid) {
-				if (setreuid(save_uid, save_euid))
-					return PAM_CRED_INSUFFICIENT;
-			} else {
-				if (setreuid(-1, 0)
-				    || setreuid(save_uid, -1)
-				    || setreuid(-1, save_euid))
-					return PAM_CRED_INSUFFICIENT;
-			}
-
-			if (*spwdent == NULL || (*spwdent)->sp_pwdp == NULL)
-				return PAM_AUTHINFO_UNAVAIL;
-#else
-			/* we must run helper for NIS+ passwords */
-			return PAM_UNIX_RUN_HELPER;
-#endif
-		} else if (is_pwd_shadowed(*pwd)) {
-#ifdef HELPER_COMPILE
-			/*
-			 * shadow password file entry for this user,
-			 * if shadowing is enabled
-			 */
-			*spwdent = getspnam(name);
-			if (*spwdent == NULL || (*spwdent)->sp_pwdp == NULL)
-				return PAM_AUTHINFO_UNAVAIL;
-#else
-			/*
-			 * The helper has to be invoked to deal with
-			 * the shadow password file entry.
-			 */
-			return PAM_UNIX_RUN_HELPER;
-#endif
-		}
-	} else {
+	if (*pwd == NULL) {
 		return PAM_USER_UNKNOWN;
+	}
+
+	if (is_pwd_shadowed(*pwd)) {
+#if defined(HELPER_COMPILE) || defined(PAM_UNIX_TRY_GETSPNAM)
+		/*
+		 * shadow password file entry for this user,
+		 * if shadowing is enabled
+		 */
+#ifdef USE_PWACCESS
+		int r;
+		bool complete = false;
+		char *error = NULL;
+
+		r = pwaccess_get_user_record(-1, name, NULL, spwdent, &complete, &error);
+		if (r < 0) {
+			if (!PWACCESS_IS_NOT_RUNNING(r))
+				pam_syslog(pamh, LOG_ERR, "%s",
+					   error ? error : strerror(-r));
+			free(error);
+		}
+		if (complete)
+			return PAM_SUCCESS;
+		struct_shadow_freep(spwdent);
+#endif
+		*spwdent = pam_modutil_getspnam(pamh, name);
+		if (*spwdent == NULL || (*spwdent)->sp_pwdp == NULL
+# ifndef HELPER_COMPILE
+			/* synthesized entry from libnss-systemd */
+			|| (strcmp(name, "root") == 0 &&
+			    strcmp((*spwdent)->sp_pwdp, "!*") == 0)
+# endif
+		   )
+# ifdef HELPER_COMPILE
+			return PAM_AUTHINFO_UNAVAIL;
+# endif
+#endif /* HELPER_COMPILE || PAM_UNIX_TRY_GETSPNAM */
+#ifndef HELPER_COMPILE
+		/*
+		 * The helper has to be invoked to deal with
+		 * the shadow password file entry.
+		 */
+		return PAM_UNIX_RUN_HELPER;
+#endif
 	}
 	return PAM_SUCCESS;
 }
@@ -284,23 +273,8 @@ PAMH_ARG_DECL(int get_pwd_hash,
 	return PAM_SUCCESS;
 }
 
-/*
- * invariant: 0 <= num1
- * invariant: 0 <= num2
- */
-static int
-subtract(long num1, long num2)
-{
-	long value = num1 - num2;
-	if (value < INT_MIN)
-		return INT_MIN;
-	if (value > INT_MAX)
-		return INT_MAX;
-	return (int)value;
-}
-
 PAMH_ARG_DECL(int check_shadow_expiry,
-	struct spwd *spent, int *daysleft)
+	struct spwd *spent, long *daysleft)
 {
 	long int curdays, passed;
 	*daysleft = -1;
@@ -331,7 +305,7 @@ PAMH_ARG_DECL(int check_shadow_expiry,
 			long inact = spent->sp_max < LONG_MAX - spent->sp_inact ?
 			    spent->sp_max + spent->sp_inact : LONG_MAX;
 			if (passed >= inact) {
-				*daysleft = subtract(inact, passed);
+				*daysleft = inact - passed;
 				D(("authtok expired"));
 				return PAM_AUTHTOK_EXPIRED;
 			}
@@ -344,7 +318,7 @@ PAMH_ARG_DECL(int check_shadow_expiry,
 			long warn = spent->sp_warn > spent->sp_max ? -1 :
 			    spent->sp_max - spent->sp_warn;
 			if (passed >= warn) {
-				*daysleft = subtract(spent->sp_max, passed);
+				*daysleft = spent->sp_max - passed;
 				D(("warn before expiry"));
 			}
 		}
@@ -522,20 +496,20 @@ PAMH_ARG_DECL(char * create_password_hash,
 			   on(UNIX_BLOWFISH_PASS, ctrl) ? "blowfish" :
 			   on(UNIX_SHA256_PASS, ctrl) ? "sha256" :
 			   on(UNIX_SHA512_PASS, ctrl) ? "sha512" : algoid);
-		if(sp) {
-		   pam_overwrite_string(sp);
-		}
 #ifdef HAVE_CRYPT_R
 		pam_overwrite_object(cdata);
 		free(cdata);
+#else
+		pam_overwrite_string(sp);
 #endif
 		return NULL;
 	}
 	ret = strdup(sp);
-	pam_overwrite_string(sp);
 #ifdef HAVE_CRYPT_R
 	pam_overwrite_object(cdata);
 	free(cdata);
+#else
+	pam_overwrite_string(sp);
 #endif
 	return ret;
 }
