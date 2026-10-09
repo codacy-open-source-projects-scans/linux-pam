@@ -1,9 +1,10 @@
 <refentry xmlns="http://docbook.org/ns/docbook" version="5.0" xml:id="pam_unix">
 
+  <info><date>%PAM_RELEASE_DATE%</date></info>
   <refmeta>
     <refentrytitle>pam_unix</refentrytitle>
     <manvolnum>8</manvolnum>
-    <refmiscinfo class="source">Linux-PAM</refmiscinfo>
+    <refmiscinfo class="source">Linux-PAM %PAM_VERSION%</refmiscinfo>
     <refmiscinfo class="manual">Linux-PAM Manual</refmiscinfo>
   </refmeta>
 
@@ -87,12 +88,14 @@
       The password component of this module performs the task of updating
       the user's password. The default encryption hash is taken from the
       <emphasis remap="B">ENCRYPT_METHOD</emphasis> variable from
-      <emphasis>/etc/login.defs</emphasis>
+      <emphasis>login.defs</emphasis>. If that variable is absent
+      and no hash algorithm option is passed to the module, SHA512 is
+      used as the built-in default.
     </para>
 
     <para>
-      The session component of this module logs when a user logins
-      or leave the system.
+      The session component of this module logs when a user logs in
+      or leaves the system.
     </para>
 
     <para>
@@ -287,17 +290,6 @@
       </varlistentry>
       <varlistentry>
         <term>
-          bigcrypt
-        </term>
-        <listitem>
-          <para>
-            When a user changes their password next,
-            encrypt it with the DEC C2 algorithm.
-          </para>
-        </listitem>
-      </varlistentry>
-      <varlistentry>
-        <term>
           sha256
         </term>
         <listitem>
@@ -397,7 +389,6 @@
         <listitem>
           <para>
             Set a minimum password length of <replaceable>n</replaceable>
-            characters. The max. for DES crypt based passwords is 8
             characters.
           </para>
         </listitem>

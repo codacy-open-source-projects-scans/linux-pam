@@ -1,5 +1,5 @@
 project('Linux-PAM', 'c',
-        version: '1.7.2',
+        version: '1.7.3',
         license: 'BSD-3-Clause OR GPL-2.0-or-later',
         default_options: [
           'b_pie=true',
@@ -12,6 +12,48 @@ project('Linux-PAM', 'c',
 fs = import('fs')
 pkgconfig = import('pkgconfig')
 
+prog_git = find_program('git', required: false)
+
+if fs.is_file('.tarball-version')
+  pam_version_full = fs.read('.tarball-version').strip()
+  pam_version_numeric = pam_version_full.split('.g')[0]
+else
+  pam_version_numeric = meson.project_version() + '.0.0'
+  pam_version_full = pam_version_numeric
+  if prog_git.found()
+    r = run_command(prog_git, 'describe', '--match', 'v*', check: false)
+    if r.returncode() == 0
+      git_version = r.stdout().strip().substring(1)
+      parts = git_version.split('-')
+      if parts.length() == 1
+        pam_version_numeric = parts[0]
+        pam_version_full = pam_version_numeric
+      else
+        pam_version_numeric = parts[0] + '.0.' + parts[1]
+        pam_version_full = pam_version_numeric + '.' + parts[2]
+      endif
+    endif
+  endif
+endif
+
+meson.add_dist_script('sh', '-c',
+  'echo "$1" > "$MESON_DIST_ROOT"/.tarball-version', '_', pam_version_full)
+
+if fs.is_file('.release-date')
+  release_date = fs.read('.release-date').strip()
+else
+  release_date = 'unreleased'
+  if prog_git.found()
+    r = run_command(prog_git, 'log', '-1', '--format=%cd', '--date=format:%B %Y',
+                    check: false)
+    if r.returncode() == 0
+      release_date = r.stdout().strip()
+    endif
+  endif
+endif
+
+meson.add_dist_script('sh', '-c',
+  'echo "$1" > "$MESON_DIST_ROOT"/.release-date', '_', release_date)
 
 prefixdir = get_option('prefix')
 if not fs.is_absolute(prefixdir)
@@ -38,7 +80,7 @@ null_dep = dependency('', required: false)
 
 cdata.set('_GNU_SOURCE', 1)
 cdata.set_quoted('PACKAGE', meson.project_name())
-cdata.set_quoted('PAM_VERSION', meson.project_version())
+cdata.set_quoted('PAM_VERSION', pam_version_full)
 cdata.set('UNUSED', '__attribute__((__unused__))')
 cdata.set('PAM_NO_HEADER_FUNCTIONS', 1, description: 'Disable function bodies in headers')
 cdata.set_quoted('SYSCONFDIR', sysconfdir)
@@ -116,15 +158,21 @@ try_cc_flags = [
   '-Wcast-qual',
   '-Wdeprecated',
   '-Wformat=2',
+  # clang rejects the level suffix; keep both so each compiler picks one
+  '-Wimplicit-fallthrough',
+  '-Wimplicit-fallthrough=5',
   '-Winit-self',
+  '-Wjump-misses-init',
   '-Wmain',
   '-Wmissing-declarations',
   '-Wmissing-format-attribute',
   '-Wmissing-prototypes',
+  '-Wmissing-variable-declarations',
   '-Wnull-dereference',
   '-Wpointer-arith',
   '-Wreturn-type',
   '-Wshadow',
+  '-Wshift-sign-overflow',
   '-Wstrict-prototypes',
   '-Wundef',
   '-Wuninitialized',

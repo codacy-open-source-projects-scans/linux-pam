@@ -62,7 +62,6 @@ typedef struct var {
 
 #define DEFINE_VAR   101
 #define UNDEFINE_VAR 102
-#define ILLEGAL_VAR  103
 
 struct string_buffer {
   char *str;
@@ -550,7 +549,7 @@ _strbuf_reserve(struct string_buffer *buffer, size_t add)
   if (buffer->size == 0 && add < 64) {
     /* Start with 64 bytes if that's enough */
     s = 64;
-  } else if (buffer->size >= SIZE_MAX / 2 || buffer->size * 2 < add + 1) {
+  } else if (buffer->size >= SIZE_MAX / 2 || buffer->size * 2 < buffer->len + add + 1) {
     /* If doubling is not enough (or not possible), get as much as needed */
     s = buffer->len + add + 1;
   } else {
@@ -603,7 +602,7 @@ _strbuf_add_string(struct string_buffer *buffer, const char *str)
 static int
 _expand_arg(pam_handle_t *pamh, char **value)
 {
-  const char *orig=*value;
+  char *orig=*value;
   struct string_buffer buf;
 
   /*
@@ -907,9 +906,10 @@ _parse_config_file(pam_handle_t *pamh, int ctrl, const char *file)
 	  retval = _undefine_var(pamh, ctrl, var);
 	}
       }
-      if (PAM_SUCCESS != retval && ILLEGAL_VAR != retval
+      if (PAM_SUCCESS != retval
 	  && BAD_LINE != retval && PAM_BAD_ITEM != retval) break;
 
+      retval = PAM_SUCCESS;
       _clean_var(var);
 
     }  /* for */

@@ -217,6 +217,8 @@ foreach man: pam_module_mans
               '--path', meson.current_source_dir(),
               stringparam_vendordir,
               stringparam_profileconditions,
+              '--stringparam', 'pam_version', pam_version_full,
+              '--stringparam', 'pam_release_date', release_date,
               custom_man_xsl,
               '@INPUT@'],
     install: true,
@@ -452,11 +454,6 @@ if module == 'pam_unix'
       install_dir: sbindir,
     )
   endif
-  executable(
-    'bigcrypt',
-    sources: ['bigcrypt.c', 'bigcrypt_main.c'],
-    dependencies: [libpam_internal_dep, libpam_dep, libcrypt],
-  )
 endif
 
 
@@ -472,10 +469,8 @@ tst_module_retval_name = 'tst-' + module + '-retval'
 tst_module_retval_src = tst_module_retval_name + '.c'
 
 if fs.exists(tst_module_retval_src)
-  tst_module_retval_link_args = ''
-  if module == 'pam_canonicalize_user'
-    tst_module_retval_link_args = '-Wl,--export-dynamic'
-  endif
+  tst_module_retval_link_args = \
+    (module == 'pam_canonicalize_user') ? ['-Wl,--export-dynamic'] : []
 
   tst_module_retval_deps = [libpam_internal_dep, libpam_dep]
   if module == 'pam_rootok'

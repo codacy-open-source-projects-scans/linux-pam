@@ -1,9 +1,10 @@
 <refentry xmlns="http://docbook.org/ns/docbook" version="5.0" xml:id="sepermit.conf">
 
+  <info><date>%PAM_RELEASE_DATE%</date></info>
   <refmeta>
     <refentrytitle>sepermit.conf</refentrytitle>
     <manvolnum>5</manvolnum>
-    <refmiscinfo class="source">Linux-PAM</refmiscinfo>
+    <refmiscinfo class="source">Linux-PAM %PAM_VERSION%</refmiscinfo>
     <refmiscinfo class="manual">Linux-PAM Manual</refmiscinfo>
   </refmeta>
 
@@ -71,7 +72,8 @@
     </variablelist>
 
     <para>
-      The lines which start with # character are comments and are ignored.
+      The lines whose first non-whitespace character is # are comments
+      and are ignored.
     </para>
   </refsect1>
 
